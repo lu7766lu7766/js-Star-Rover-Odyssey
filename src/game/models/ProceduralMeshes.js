@@ -70,6 +70,44 @@ export function createTextTexture(text, bgColor = '#ffffff', textColor = '#2563e
   return texture;
 }
 
+let _hazardTexture = null;
+export function createHazardTexture() {
+  if (_hazardTexture) return _hazardTexture;
+  if (typeof document === 'undefined') return new THREE.Texture();
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+
+  // Vibrant caution amber background
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(0, 0, 256, 64);
+
+  // High-contrast angled hazard stripes
+  ctx.fillStyle = '#0f172a';
+  for (let x = -64; x < 320; x += 36) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 18, 0);
+    ctx.lineTo(x - 6, 64);
+    ctx.lineTo(x - 24, 64);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Neon crimson safety rims
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, 252, 60);
+
+  _hazardTexture = new THREE.CanvasTexture(canvas);
+  _hazardTexture.wrapS = THREE.RepeatWrapping;
+  _hazardTexture.wrapT = THREE.RepeatWrapping;
+  _hazardTexture.repeat.set(4, 1);
+  _hazardTexture.colorSpace = THREE.SRGBColorSpace;
+  return _hazardTexture;
+}
+
 /**
  * Hero exploration rover - rounded, believable, classroom-friendly
  */

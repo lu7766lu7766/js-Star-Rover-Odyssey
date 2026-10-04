@@ -14,7 +14,8 @@ import {
   createSciFiAstronaut,
   createSciFiGrid,
   createLandingPad,
-  createGlowSprite
+  createGlowSprite,
+  createHazardTexture
 } from '../models/ProceduralMeshes.js';
 import { soundManager } from '../core/SoundManager.js';
 import { PARKOUR_COURSES, TILE, ACTION } from '../sim/parkour.js';
@@ -30,6 +31,8 @@ export class Level9Scene extends BaseGameScene {
     this.trackGroup = null;
     this.obstaclesGroup = null;
     this.finishPad = null;
+    this.lowBarriers = [];
+    this.pulseTimer = 0;
 
     // Simulation animation state
     this.course = PARKOUR_COURSES[0]; // Course A
@@ -88,6 +91,7 @@ export class Level9Scene extends BaseGameScene {
   buildTrack() {
     this.trackGroup = new THREE.Group();
     this.obstaclesGroup = new THREE.Group();
+    this.lowBarriers = [];
 
     const tiles = this.course.tiles;
 
@@ -101,13 +105,13 @@ export class Level9Scene extends BaseGameScene {
     const borderMat = new THREE.MeshBasicMaterial({ color: 0x0ea5e9 });
     const lineMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
 
-    // Low obstacle material (crimson/orange laser gate)
+    // Low obstacle material (bright glowing laser rail)
     const lowBarrierMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.85,
-      metalness: 0.7,
-      roughness: 0.2
+      color: 0xf97316,
+      emissive: 0xef4444,
+      emissiveIntensity: 2.2,
+      metalness: 0.6,
+      roughness: 0.15
     });
 
     // High hurdle material (violet plasma beam)
@@ -124,8 +128,6 @@ export class Level9Scene extends BaseGameScene {
       metalness: 0.85,
       roughness: 0.25
     });
-
-    const tileCount = tiles.length;
 
     tiles.forEach((type, idx) => {
       const z = idx * STEP_LEN;
@@ -187,39 +189,70 @@ export class Level9Scene extends BaseGameScene {
       }
 
       // Obstacle placement:
-      // Obstacle for step idx -> idx + 1 or on arrival at tile idx:
       // We place obstacles at the TRANSIT MIDPOINT so the player jumps or slides right through them!
-      // When at idx - 1, player looks ahead at type = tiles[idx].
-      // The obstacle is placed at z = (idx - 0.5) * STEP_LEN.
       if (idx > 0) {
         const obstacleZ = (idx - 0.5) * STEP_LEN;
 
-        // 1. Low Barrier (jump over it at peak of jump)
+        // 1. Low Barrier (High visibility: Heavy hazard wedge + side bollards + top laser rail + floor decal)
         if (type === TILE.LOW) {
           const barrierGroup = new THREE.Group();
           barrierGroup.position.set(0, 0, obstacleZ);
 
-          // Base stands
-          const standL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.4), pylonMat);
-          standL.position.set(-TRACK_WIDTH * 0.46, 0.17, 0);
-          barrierGroup.add(standL);
+          // 1a. Heavy angled barricade wedge with diagonal hazard stripes
+          const wedgeGeo = new THREE.BoxGeometry(TRACK_WIDTH * 0.94, 0.36, 0.55);
+          const wedgeMat = new THREE.MeshStandardMaterial({
+            map: createHazardTexture(),
+            roughness: 0.35,
+            metalness: 0.35
+          });
+          const wedge = new THREE.Mesh(wedgeGeo, wedgeMat);
+          wedge.position.set(0, 0.18, 0);
+          barrierGroup.add(wedge);
 
-          const standR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.4), pylonMat);
-          standR.position.set(TRACK_WIDTH * 0.46, 0.17, 0);
-          barrierGroup.add(standR);
+          // 1b. Left & Right Heavy Support Bollards
+          const bollardGeo = new THREE.CylinderGeometry(0.14, 0.18, 0.65, 16);
+          const bollardL = new THREE.Mesh(bollardGeo, pylonMat);
+          bollardL.position.set(-TRACK_WIDTH * 0.47, 0.32, 0);
+          barrierGroup.add(bollardL);
 
-          // Glowing energy hurdle (height 0.40, easily cleared by 1.35m jump)
-          const barGeo = new THREE.BoxGeometry(TRACK_WIDTH * 0.90, 0.38, 0.18);
-          const barrier = new THREE.Mesh(barGeo, lowBarrierMat);
-          barrier.position.set(0, 0.20, 0);
-          barrierGroup.add(barrier);
+          const bollardR = new THREE.Mesh(bollardGeo, pylonMat);
+          bollardR.position.set(TRACK_WIDTH * 0.47, 0.32, 0);
+          barrierGroup.add(bollardR);
 
-          // Amber pulse light
-          const light = createGlowSprite(0xf59e0b, 1.2, 0.8);
-          light.position.set(0, 0.35, 0);
-          barrierGroup.add(light);
+          // 1c. Flashing Amber Warning Beacons on Bollards
+          const beaconL = createGlowSprite(0xf59e0b, 1.4, 0.95);
+          beaconL.position.set(-TRACK_WIDTH * 0.47, 0.68, 0);
+          barrierGroup.add(beaconL);
+
+          const beaconR = createGlowSprite(0xf59e0b, 1.4, 0.95);
+          beaconR.position.set(TRACK_WIDTH * 0.47, 0.68, 0);
+          barrierGroup.add(beaconR);
+
+          // 1d. Elevated Laser Tripwire Rail on Top (height Y = 0.48)
+          const railGeo = new THREE.CylinderGeometry(0.065, 0.065, TRACK_WIDTH * 0.94, 16);
+          railGeo.rotateZ(Math.PI / 2);
+          const rail = new THREE.Mesh(railGeo, lowBarrierMat);
+          rail.position.set(0, 0.48, 0);
+          barrierGroup.add(rail);
+
+          // 1e. Glowing Laser Energy Sprite along the rail
+          const centerGlow = createGlowSprite(0xef4444, 2.8, 0.85);
+          centerGlow.position.set(0, 0.48, 0);
+          barrierGroup.add(centerGlow);
+
+          // 1f. Holographic Caution Floor Decal in Front
+          const warnDeckGeo = new THREE.BoxGeometry(TRACK_WIDTH * 0.90, 0.02, 0.50);
+          const warnDeckMat = new THREE.MeshBasicMaterial({
+            color: 0xf59e0b,
+            transparent: true,
+            opacity: 0.85
+          });
+          const warnDeck = new THREE.Mesh(warnDeckGeo, warnDeckMat);
+          warnDeck.position.set(0, 0.02, -0.55);
+          barrierGroup.add(warnDeck);
 
           this.obstaclesGroup.add(barrierGroup);
+          this.lowBarriers.push({ beaconL, beaconR, centerGlow });
         }
 
         // 2. High Hurdle (slide under the plasma bar)
@@ -364,9 +397,19 @@ export class Level9Scene extends BaseGameScene {
   }
 
   update(delta) {
-    // 1. Animate finish pad hologram
+    // 1. Animate finish pad hologram & low barrier pulsating beacons
     if (this.finishPad && this.finishPad.userData.holo) {
       this.finishPad.userData.holo.rotation.z += delta * 1.4;
+    }
+
+    if (this.lowBarriers && this.lowBarriers.length > 0) {
+      this.pulseTimer += delta;
+      const pulse = 1.0 + Math.sin(this.pulseTimer * 8.0) * 0.25;
+      for (const b of this.lowBarriers) {
+        if (b.beaconL) b.beaconL.scale.set(1.4 * pulse, 1.4 * pulse, 1);
+        if (b.beaconR) b.beaconR.scale.set(1.4 * pulse, 1.4 * pulse, 1);
+        if (b.centerGlow) b.centerGlow.scale.set(2.8 * pulse, 2.8 * pulse, 1);
+      }
     }
 
     const u = this.character ? this.character.userData : null;
