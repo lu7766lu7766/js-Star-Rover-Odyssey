@@ -14,7 +14,6 @@ import {
   createSciFiAstronaut,
   createSciFiGrid,
   createLandingPad,
-  createTextTexture,
   createGlowSprite
 } from '../models/ProceduralMeshes.js';
 import { soundManager } from '../core/SoundManager.js';
@@ -307,12 +306,6 @@ export class Level9Scene extends BaseGameScene {
       this.character.position.set(0, this.characterBaseY, 0);
       this.character.rotation.set(0, 0, 0);
       this.resetAstronautPose();
-
-      const { nameLabel } = this.character.userData;
-      if (nameLabel) {
-        nameLabel.material.map = createTextTexture('PARKOUR · 起點整備', '#ffffff', '#2563eb');
-        nameLabel.material.needsUpdate = true;
-      }
     }
   }
 
@@ -346,17 +339,9 @@ export class Level9Scene extends BaseGameScene {
         soundManager.playEngine();
       } catch (e) {}
     } else if (actionType === 'LEVEL_SUCCESS') {
-      const { nameLabel } = this.character.userData;
-      if (nameLabel) {
-        nameLabel.material.map = createTextTexture('★ 抵達逃生艙·跑酷成功！', '#ffffff', '#10b981');
-        nameLabel.material.needsUpdate = true;
-      }
+      // Level success handling
     } else if (actionType === 'LEVEL_FAIL') {
-      const { nameLabel } = this.character.userData;
-      if (nameLabel) {
-        nameLabel.material.map = createTextTexture('⚠️ 避障失敗·失去平衡', '#ffffff', '#ef4444');
-        nameLabel.material.needsUpdate = true;
-      }
+      // Level fail handling
     }
   }
 
@@ -376,16 +361,6 @@ export class Level9Scene extends BaseGameScene {
 
     this.startPos.set(0, this.characterBaseY, fromZ);
     this.targetPos.set(0, this.characterBaseY, toZ);
-
-    const act = this.currentFrame.action;
-    const ahead = this.currentFrame.ahead;
-    const { nameLabel } = this.character.userData;
-
-    if (nameLabel) {
-      const actText = act === ACTION.JUMP ? '🦘 JUMP 飛躍' : act === ACTION.SLIDE ? '⚡ SLIDE 滑壘' : '🏃 RUN 疾衝';
-      nameLabel.material.map = createTextTexture(`[${ahead}] ➔ ${actText}`, '#ffffff', '#0284c7');
-      nameLabel.material.needsUpdate = true;
-    }
   }
 
   update(delta) {
@@ -572,11 +547,6 @@ export class Level9Scene extends BaseGameScene {
           if (u.flameMeshL) u.flameMeshL.visible = false;
           if (u.flameMeshR) u.flameMeshR.visible = false;
           if (u.slideSparks) u.slideSparks.children.forEach((s) => (s.visible = false));
-          const { nameLabel } = this.character.userData;
-          if (nameLabel) {
-            nameLabel.material.map = createTextTexture('💥 避障失誤！', '#ffffff', '#ef4444');
-            nameLabel.material.needsUpdate = true;
-          }
           try {
             soundManager.playError();
           } catch (e) {}

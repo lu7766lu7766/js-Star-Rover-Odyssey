@@ -906,17 +906,6 @@ export function createSciFiAstronaut() {
   }
   root.add(slideSparks);
 
-  // Floating status text billboard
-  const labelMat = new THREE.SpriteMaterial({
-    map: createTextTexture('PARKOUR · 起點整備', '#ffffff', '#2563eb'),
-    transparent: true,
-    opacity: 0.95
-  });
-  const nameLabel = new THREE.Sprite(labelMat);
-  nameLabel.position.set(0, 1.95, 0);
-  nameLabel.scale.set(3.4, 0.85, 1);
-  root.add(nameLabel);
-
   // Store references for animation
   group.userData = {
     root,
@@ -933,8 +922,7 @@ export function createSciFiAstronaut() {
     rightElbow,
     flameMeshL,
     flameMeshR,
-    slideSparks,
-    nameLabel
+    slideSparks
   };
 
   return group;
