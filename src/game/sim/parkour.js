@@ -158,11 +158,11 @@ export function describeFailure(fail, error = null) {
   const head = `第 ${fail.tick} 步，前方是【${label}】（ahead === '${fail.ahead}'），你的 decide 回傳了 ${shown}`;
   switch (fail.reason) {
     case FAIL_REASON.FALL:
-      return `${head}，探測車一腳踩空掉進虛空！缺口要用 'jump' 跳過去。`;
+      return `${head}，太空探險家一腳踩空掉進虛空！缺口要用 'jump' 跳過去。`;
     case FAIL_REASON.TRIP:
-      return `${head}，探測車被低矮障礙絆倒！低矮障礙要用 'jump' 跳過去。`;
+      return `${head}，太空探險家被低矮障礙絆倒！低矮障礙要用 'jump' 跳過去。`;
     case FAIL_REASON.HIT:
-      return `${head}，探測車撞上高空橫桿！高空橫桿要用 'slide' 滑過去。`;
+      return `${head}，太空探險家撞上高空橫桿！高空橫桿要用 'slide' 滑過去。`;
     case FAIL_REASON.WASTED:
       return `${head}，在平地做多餘的特技失去平衡！平地（與終點前）用 'run' 就好。`;
     case FAIL_REASON.INVALID:

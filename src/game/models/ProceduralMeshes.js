@@ -677,3 +677,265 @@ export function createDrone(id, x = 0, y = 0, z = 0, battery = 100) {
   drone.userData.initialPos = new THREE.Vector3(x, y, z);
   return drone;
 }
+
+/**
+ * 3D Procedural Sci-Fi Parkour Astronaut
+ * Articulated limbs for natural running, athletic hurdle jumps, and extreme low-profile baseball slides.
+ */
+export function createSciFiAstronaut() {
+  const group = new THREE.Group();
+  group.name = 'SciFiAstronaut';
+
+  const suitWhite = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.35,
+    metalness: 0.2
+  });
+  const armorNavy = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.45,
+    metalness: 0.65
+  });
+  const cyanEnergy = new THREE.MeshStandardMaterial({
+    color: 0x06b6d4,
+    emissive: 0x00f2ff,
+    emissiveIntensity: 1.2,
+    roughness: 0.2
+  });
+  const goldVisorMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf59e0b,
+    emissive: 0xb45309,
+    emissiveIntensity: 0.4,
+    roughness: 0.08,
+    metalness: 0.95,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1
+  });
+  const jointDark = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    roughness: 0.7,
+    metalness: 0.3
+  });
+  const flameMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.85
+  });
+
+  // Base pivot at ground
+  const root = new THREE.Group();
+  root.name = 'astronautRoot';
+  group.add(root);
+
+  // Pelvis / Hips (pivot for lower body and anchor for upper body)
+  const pelvis = new THREE.Group();
+  pelvis.position.y = 0.78;
+  root.add(pelvis);
+
+  const hipMesh = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.22, 0.26, 2, 0.05), armorNavy);
+  pelvis.add(hipMesh);
+
+  // Torso & Upper Body
+  const torsoGroup = new THREE.Group();
+  torsoGroup.position.set(0, 0.11, 0);
+  pelvis.add(torsoGroup);
+
+  // Lower abdomen
+  const abMesh = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.20, 0.22, 2, 0.04), jointDark);
+  abMesh.position.set(0, 0.09, 0);
+  torsoGroup.add(abMesh);
+
+  // Armored chest
+  const chestMesh = new THREE.Mesh(new RoundedBoxGeometry(0.48, 0.40, 0.30, 3, 0.08), suitWhite);
+  chestMesh.position.set(0, 0.36, 0);
+  torsoGroup.add(chestMesh);
+
+  // Chest arc reactor
+  const reactor = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 16), cyanEnergy);
+  reactor.rotation.x = Math.PI / 2;
+  reactor.position.set(0, 0.38, 0.16);
+  torsoGroup.add(reactor);
+
+  // Jetpack on back
+  const jetpack = new THREE.Group();
+  jetpack.position.set(0, 0.34, -0.22);
+  const packBody = new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.40, 0.16, 2, 0.04), armorNavy);
+  jetpack.add(packBody);
+
+  // Jet thruster nozzles
+  const nozzleGeo = new THREE.CylinderGeometry(0.045, 0.075, 0.14, 12);
+  const thrusterL = new THREE.Mesh(nozzleGeo, jointDark);
+  thrusterL.position.set(-0.11, -0.22, 0);
+  jetpack.add(thrusterL);
+  const thrusterR = new THREE.Mesh(nozzleGeo, jointDark);
+  thrusterR.position.set(0.11, -0.22, 0);
+  jetpack.add(thrusterR);
+
+  // Thruster flames (cones)
+  const flameGeo = new THREE.ConeGeometry(0.07, 0.35, 12);
+  flameGeo.rotateX(Math.PI);
+  const flameMeshL = new THREE.Mesh(flameGeo, flameMat);
+  flameMeshL.position.set(-0.11, -0.38, 0);
+  flameMeshL.visible = false;
+  jetpack.add(flameMeshL);
+
+  const flameMeshR = new THREE.Mesh(flameGeo, flameMat);
+  flameMeshR.position.set(0.11, -0.38, 0);
+  flameMeshR.visible = false;
+  jetpack.add(flameMeshR);
+
+  torsoGroup.add(jetpack);
+
+  // Head & Helmet
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 0.62, 0);
+  torsoGroup.add(headGroup);
+
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.20, 24, 20), suitWhite);
+  headGroup.add(helmet);
+
+  const visor = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 16, 0, Math.PI, 0, Math.PI * 0.75), goldVisorMat);
+  visor.position.set(0, 0.02, 0.03);
+  headGroup.add(visor);
+
+  // Left Leg (pivot at hip)
+  const leftLeg = new THREE.Group();
+  leftLeg.position.set(-0.15, -0.06, 0);
+  pelvis.add(leftLeg);
+
+  const leftThigh = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.36, 0.17, 2, 0.04), suitWhite);
+  leftThigh.position.set(0, -0.18, 0);
+  leftLeg.add(leftThigh);
+
+  const leftKnee = new THREE.Group();
+  leftKnee.position.set(0, -0.36, 0);
+  leftLeg.add(leftKnee);
+
+  const leftShin = new THREE.Mesh(new RoundedBoxGeometry(0.14, 0.36, 0.16, 2, 0.04), armorNavy);
+  leftShin.position.set(0, -0.16, 0);
+  leftKnee.add(leftShin);
+
+  const leftFoot = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.11, 0.28, 2, 0.03), suitWhite);
+  leftFoot.position.set(0, -0.33, 0.05);
+  leftKnee.add(leftFoot);
+
+  const leftSoleLight = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.02, 0.24), cyanEnergy);
+  leftSoleLight.position.set(0, -0.385, 0.05);
+  leftKnee.add(leftSoleLight);
+
+  // Right Leg (pivot at hip)
+  const rightLeg = new THREE.Group();
+  rightLeg.position.set(0.15, -0.06, 0);
+  pelvis.add(rightLeg);
+
+  const rightThigh = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.36, 0.17, 2, 0.04), suitWhite);
+  rightThigh.position.set(0, -0.18, 0);
+  rightLeg.add(rightThigh);
+
+  const rightKnee = new THREE.Group();
+  rightKnee.position.set(0, -0.36, 0);
+  rightLeg.add(rightKnee);
+
+  const rightShin = new THREE.Mesh(new RoundedBoxGeometry(0.14, 0.36, 0.16, 2, 0.04), armorNavy);
+  rightShin.position.set(0, -0.16, 0);
+  rightKnee.add(rightShin);
+
+  const rightFoot = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.11, 0.28, 2, 0.03), suitWhite);
+  rightFoot.position.set(0, -0.33, 0.05);
+  rightKnee.add(rightFoot);
+
+  const rightSoleLight = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.02, 0.24), cyanEnergy);
+  rightSoleLight.position.set(0, -0.385, 0.05);
+  rightKnee.add(rightSoleLight);
+
+  // Left Arm (pivot at shoulder)
+  const leftArm = new THREE.Group();
+  leftArm.position.set(-0.31, 0.44, 0);
+  torsoGroup.add(leftArm);
+
+  const leftShoulder = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.16, 0.18, 2, 0.04), armorNavy);
+  leftArm.add(leftShoulder);
+
+  const leftBicep = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.26, 0.13, 2, 0.03), suitWhite);
+  leftBicep.position.set(0, -0.13, 0);
+  leftArm.add(leftBicep);
+
+  const leftElbow = new THREE.Group();
+  leftElbow.position.set(0, -0.26, 0);
+  leftArm.add(leftElbow);
+
+  const leftForearm = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.13, 2, 0.03), suitWhite);
+  leftForearm.position.set(0, -0.12, 0);
+  leftElbow.add(leftForearm);
+
+  const leftHand = new THREE.Mesh(new RoundedBoxGeometry(0.10, 0.11, 0.12, 2, 0.03), armorNavy);
+  leftHand.position.set(0, -0.26, 0);
+  leftElbow.add(leftHand);
+
+  // Right Arm (pivot at shoulder)
+  const rightArm = new THREE.Group();
+  rightArm.position.set(0.31, 0.44, 0);
+  torsoGroup.add(rightArm);
+
+  const rightShoulder = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.16, 0.18, 2, 0.04), armorNavy);
+  rightArm.add(rightShoulder);
+
+  const rightBicep = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.26, 0.13, 2, 0.03), suitWhite);
+  rightBicep.position.set(0, -0.13, 0);
+  rightArm.add(rightBicep);
+
+  const rightElbow = new THREE.Group();
+  rightElbow.position.set(0, -0.26, 0);
+  rightArm.add(rightElbow);
+
+  const rightForearm = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.24, 0.13, 2, 0.03), suitWhite);
+  rightForearm.position.set(0, -0.12, 0);
+  rightElbow.add(rightForearm);
+
+  const rightHand = new THREE.Mesh(new RoundedBoxGeometry(0.10, 0.11, 0.12, 2, 0.03), armorNavy);
+  rightHand.position.set(0, -0.26, 0);
+  rightElbow.add(rightHand);
+
+  // Slide sparks particles group
+  const slideSparks = new THREE.Group();
+  slideSparks.position.set(0, 0.05, 0);
+  for (let i = 0; i < 5; i++) {
+    const s = createGlowSprite(0x38bdf8, 0.45, 0.85);
+    s.visible = false;
+    slideSparks.add(s);
+  }
+  root.add(slideSparks);
+
+  // Floating status text billboard
+  const labelMat = new THREE.SpriteMaterial({
+    map: createTextTexture('PARKOUR · 起點整備', '#ffffff', '#2563eb'),
+    transparent: true,
+    opacity: 0.95
+  });
+  const nameLabel = new THREE.Sprite(labelMat);
+  nameLabel.position.set(0, 1.95, 0);
+  nameLabel.scale.set(3.4, 0.85, 1);
+  root.add(nameLabel);
+
+  // Store references for animation
+  group.userData = {
+    root,
+    pelvis,
+    torsoGroup,
+    headGroup,
+    leftLeg,
+    leftKnee,
+    rightLeg,
+    rightKnee,
+    leftArm,
+    leftElbow,
+    rightArm,
+    rightElbow,
+    flameMeshL,
+    flameMeshR,
+    slideSparks,
+    nameLabel
+  };
+
+  return group;
+}

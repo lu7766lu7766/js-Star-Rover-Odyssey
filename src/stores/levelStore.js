@@ -386,7 +386,7 @@ export const useLevelStore = defineStore('level', {
       } else if (currentLevel.id === 9) {
         const call = tracePayload.apiCalls?.find((c) => c.api === 'runner.setAutoRun');
         const frames = call?.runs?.find((r) => r.courseId === 'A')?.frames || [];
-        animDuration = Math.max(1200, Math.min(frames.length * 380, 5500));
+        animDuration = Math.max(1200, Math.min(frames.length * 450 + 250, 7000));
       }
 
       // Allow 3D animation to play out
