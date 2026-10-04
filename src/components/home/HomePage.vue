@@ -61,7 +61,7 @@
         <div class="hero-actions">
           <button class="btn btn-primary hero-btn" @click="startAdventure">
             <Play :size="18" />
-            <span>開始冒險 (第 {{ nextPlayableLevel }} 關)</span>
+            <span>開始冒險 (第 {{ getLevelNumber(nextPlayableLevel) }} 關)</span>
           </button>
         </div>
 
@@ -99,7 +99,7 @@
           >
             <!-- Card Header -->
             <div class="level-card-top">
-              <span class="level-number">LEVEL {{ level.id }}</span>
+              <span class="level-number">LEVEL {{ getLevelNumber(level.id) }}</span>
               <span v-if="progressStore.isLevelCompleted(level.id)" class="badge badge-success">
                 <CheckCircle2 :size="12" /> 已完成
               </span>
@@ -220,7 +220,7 @@ import {
   Compass, Play, Volume2, VolumeX, Download, Upload, HelpCircle, Key,
   Sparkles, CheckCircle2, Lock, ArrowRight, X
 } from 'lucide-vue-next';
-import { ALL_LEVELS } from '../../levels/index.js';
+import { ALL_LEVELS, getLevelNumber } from '../../levels/index.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { soundManager } from '../../game/core/SoundManager.js';
 

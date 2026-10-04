@@ -1,10 +1,13 @@
 /**
  * Star Rover Odyssey 2.0 - Storage Utility
  * Manages LocalStorage persistence and JSON import/export
- * Stores unlocked levels, completed levels, and operation states (Levels 1-8).
+ * Stores unlocked levels, completed levels, and operation states (all levels in the registry).
  */
 
+import { VALID_LEVEL_IDS } from '../levels/index.js';
+
 const STORAGE_KEY = 'star_rover_odyssey_save_v2';
+const isValidLevelId = (n) => VALID_LEVEL_IDS.includes(n);
 
 export const DEFAULT_SAVE_DATA = {
   version: 2,
@@ -39,9 +42,9 @@ export function validateSaveData(data) {
     return { valid: false, error: '存檔缺少完成關卡列表' };
   }
 
-  // Ensure currentLevel is valid number 1..8
+  // Ensure currentLevel is a known level id
   let currentLevel = typeof data.currentLevel === 'number' ? data.currentLevel : 1;
-  if (currentLevel < 1 || currentLevel > 8) currentLevel = 1;
+  if (!isValidLevelId(currentLevel)) currentLevel = 1;
 
   // Persist current view so refresh stays in the same level ('home' | 'level')
   let currentView = data.currentView === 'level' ? 'level' : 'home';
@@ -57,8 +60,8 @@ export function validateSaveData(data) {
       version: 2,
       currentView,
       currentLevel,
-      unlockedLevels: Array.from(new Set(data.unlockedLevels.map(Number))).filter(n => n >= 1 && n <= 8),
-      completedLevels: Array.from(new Set(data.completedLevels.map(Number))).filter(n => n >= 1 && n <= 8),
+      unlockedLevels: Array.from(new Set(data.unlockedLevels.map(Number))).filter(isValidLevelId),
+      completedLevels: Array.from(new Set(data.completedLevels.map(Number))).filter(isValidLevelId),
       savedOperations,
       timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now()
     }

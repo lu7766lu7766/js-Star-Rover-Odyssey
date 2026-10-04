@@ -4,6 +4,7 @@
     <CommandSequenceControl v-else-if="level.controlType === 'command-sequence'" />
     <ParamAdjusterControl v-else-if="level.controlType === 'parameter-adjuster'" />
     <ConditionBuilderControl v-else-if="level.controlType === 'condition-builder'" />
+    <ParkourControl v-else-if="level.controlType === 'parkour'" />
     <LoopBlocksControl v-else-if="level.controlType === 'loop-blocks'" />
     <ModuleObjectControl v-else-if="level.controlType === 'module-object'" />
     <DomEventsControl v-else-if="level.controlType === 'dom-events'" />
@@ -22,6 +23,7 @@ import VariableDeclarationControl from './VariableDeclarationControl.vue';
 import CommandSequenceControl from './CommandSequenceControl.vue';
 import ParamAdjusterControl from './ParamAdjusterControl.vue';
 import ConditionBuilderControl from './ConditionBuilderControl.vue';
+import ParkourControl from './ParkourControl.vue';
 import LoopBlocksControl from './LoopBlocksControl.vue';
 import ModuleObjectControl from './ModuleObjectControl.vue';
 import DomEventsControl from './DomEventsControl.vue';

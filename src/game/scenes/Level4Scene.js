@@ -8,6 +8,7 @@ import { BaseGameScene } from './BaseGameScene.js';
 import { createSciFiRover, createSciFiGrid, createLandingPad, createTextTexture } from '../models/ProceduralMeshes.js';
 import { soundManager } from '../core/SoundManager.js';
 import { LEVEL_4_MAP } from '../../levels/level-4.js';
+import { simulateMaze, actionsFromApiCalls, actionsFromLoopConfig } from '../sim/maze.js';
 
 const CELL_SIZE = 2.4;
 
@@ -284,38 +285,14 @@ export class Level4Scene extends BaseGameScene {
       this.resetRoverToStart();
 
       const inner = payload.payload || payload || {};
-      // Expand blocks into flat animation steps
-      const flatActions = [];
-
+      let actions = [];
       if (inner.apiCalls && Array.isArray(inner.apiCalls)) {
-        // 寫碼模式：Worker 真跑 JS 的 apiCalls trace
-        const apiToAction = {
-          'rover.moveForward': 'FORWARD',
-          'rover.moveBackward': 'BACKWARD',
-          'rover.turnLeft': 'TURN_LEFT',
-          'rover.turnRight': 'TURN_RIGHT'
-        };
-        for (const c of inner.apiCalls) {
-          const act = apiToAction[c.api];
-          if (act) flatActions.push({ type: act, sourceBlock: null });
-        }
-      } else {
-        const loopConfig = inner.loopConfig || {};
-        const blocks = loopConfig.blocks || [];
-        for (const b of blocks) {
-          if (b.type === 'LOOP') {
-            const count = Math.max(1, Math.min(b.count || 2, 6));
-            const act = b.action || 'FORWARD';
-            for (let i = 0; i < count; i++) {
-              flatActions.push({ type: act, sourceBlock: b });
-            }
-          } else {
-            flatActions.push({ type: b.type, sourceBlock: b });
-          }
-        }
+        actions = actionsFromApiCalls(inner.apiCalls);
+      } else if (inner.loopConfig) {
+        actions = actionsFromLoopConfig(inner.loopConfig);
       }
 
-      this.prepareAnimationQueue(flatActions);
+      this.prepareAnimationQueue(actions);
       try {
         soundManager.playEngine();
       } catch (e) {}
@@ -334,93 +311,13 @@ export class Level4Scene extends BaseGameScene {
     }
   }
 
-  prepareAnimationQueue(flatActions) {
-    const DIRS = [
-      { dx: 0, dy: 1 },
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: -1 },
-      { dx: -1, dy: 0 }
-    ];
-
-    let gx = this.currentGrid.x;
-    let gy = this.currentGrid.y;
-    let dir = this.currentGrid.dir;
-
-    this.animQueue = [];
-
-    const isObstacle = (cx, cy) => {
-      return LEVEL_4_MAP.obstacles.some(ob => ob.x === cx && ob.y === cy);
-    };
-
-    for (const item of flatActions) {
-      const act = item.type;
-
-      if (act === 'TURN_LEFT') {
-        const nextDir = (dir + 3) % 4;
-        this.animQueue.push({
-          type: 'TURN',
-          fromDir: dir,
-          toDir: nextDir,
-          gx,
-          gy
-        });
-        dir = nextDir;
-      } else if (act === 'TURN_RIGHT') {
-        const nextDir = (dir + 1) % 4;
-        this.animQueue.push({
-          type: 'TURN',
-          fromDir: dir,
-          toDir: nextDir,
-          gx,
-          gy
-        });
-        dir = nextDir;
-      } else if (act === 'FORWARD') {
-        const nx = gx + DIRS[dir].dx;
-        const ny = gy + DIRS[dir].dy;
-        const collision = isObstacle(nx, ny);
-        const outOfBounds = (nx < 0 || nx >= 6 || ny < 0 || ny >= 6);
-
-        this.animQueue.push({
-          type: 'MOVE',
-          fromX: gx,
-          fromY: gy,
-          toX: nx,
-          toY: ny,
-          dir,
-          collision,
-          outOfBounds
-        });
-
-        gx = nx;
-        gy = ny;
-        if (collision || outOfBounds) {
-          break; // Stop animating on crash
-        }
-      } else if (act === 'BACKWARD') {
-        const nx = gx - DIRS[dir].dx;
-        const ny = gy - DIRS[dir].dy;
-        const collision = isObstacle(nx, ny);
-        const outOfBounds = (nx < 0 || nx >= 6 || ny < 0 || ny >= 6);
-
-        this.animQueue.push({
-          type: 'MOVE',
-          fromX: gx,
-          fromY: gy,
-          toX: nx,
-          toY: ny,
-          dir,
-          collision,
-          outOfBounds
-        });
-
-        gx = nx;
-        gy = ny;
-        if (collision || outOfBounds) {
-          break;
-        }
-      }
-    }
+  /**
+   * @param {string[]} actions MAZE_ACTION 序列（FORWARD / BACKWARD / TURN_LEFT / TURN_RIGHT）
+   */
+  prepareAnimationQueue(actions) {
+    // 撞擊或出界時 simulateMaze 會在該步截止，動畫也就停在撞擊那一刻
+    const sim = simulateMaze(LEVEL_4_MAP, actions);
+    this.animQueue = sim.steps;
 
     this.isAnimating = true;
     this.stepTimer = 0;

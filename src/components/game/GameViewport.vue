@@ -141,6 +141,8 @@ import { Level5Scene } from '../../game/scenes/Level5Scene.js';
 import { Level6Scene } from '../../game/scenes/Level6Scene.js';
 import { Level7Scene } from '../../game/scenes/Level7Scene.js';
 import { Level8Scene } from '../../game/scenes/Level8Scene.js';
+import { Level9Scene } from '../../game/scenes/Level9Scene.js';
+import { getNextLevelId } from '../../levels/index.js';
 import Level6DomViewport from './Level6DomViewport.vue';
 import DroneFleetHUD from './DroneFleetHUD.vue';
 
@@ -179,7 +181,7 @@ const contextLost = ref(false);
 
 const showSuccessModal = computed(() => props.isSuccessModalOpen);
 const showFailModal = computed(() => props.isFailModalOpen);
-const hasNextLevel = computed(() => props.levelId < 8);
+const hasNextLevel = computed(() => getNextLevelId(props.levelId) !== null);
 const feedbackText = computed(() => props.lastRunResult?.feedback || '探測船邏輯自檢完成，所有遙測數據全數通過！');
 const failureErrorText = computed(() => props.lastRunResult?.error || '遙測數據自檢未通過，請檢查參數設定。');
 
@@ -221,6 +223,7 @@ function createSceneInstance(id) {
     case 6: return new Level6Scene();
     case 7: return new Level7Scene();
     case 8: return new Level8Scene();
+    case 9: return new Level9Scene();
     default: return new Level1Scene();
   }
 }

@@ -11,7 +11,7 @@
           <Lightbulb :size="14" class="text-warning" />
           <span>提示</span>
         </button>
-        <span class="badge badge-blue">LEVEL 0{{ level.id }}</span>
+        <span class="badge badge-blue">LEVEL {{ formatLevelNumber(level.id) }}</span>
       </div>
     </div>
 
@@ -93,6 +93,7 @@ import {
 } from 'lucide-vue-next';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
+import { formatLevelNumber } from '../../levels/index.js';
 import HintModal from './HintModal.vue';
 
 const levelStore = useLevelStore();

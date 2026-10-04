@@ -20,7 +20,7 @@
             :value="lvl.id"
             :disabled="!progressStore.isLevelUnlocked(lvl.id)"
           >
-            Level {{ lvl.id }}: {{ lvl.title }} {{ progressStore.isLevelCompleted(lvl.id) ? '✓' : (!progressStore.isLevelUnlocked(lvl.id) ? '🔒' : '') }}
+            Level {{ getLevelNumber(lvl.id) }}: {{ lvl.title }} {{ progressStore.isLevelCompleted(lvl.id) ? '✓' : (!progressStore.isLevelUnlocked(lvl.id) ? '🔒' : '') }}
           </option>
         </select>
         <span class="concept-badge badge badge-blue hide-mobile">{{ currentLevel.subtitle }}</span>
@@ -46,7 +46,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Map, HelpCircle, Volume2, VolumeX } from 'lucide-vue-next';
-import { ALL_LEVELS } from '../../levels/index.js';
+import { ALL_LEVELS, getLevelNumber } from '../../levels/index.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { soundManager } from '../../game/core/SoundManager.js';

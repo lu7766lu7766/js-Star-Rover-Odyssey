@@ -77,6 +77,7 @@ import ControlDeck from '../controls/ControlDeck.vue';
 import MissionHub from '../mission/MissionHub.vue';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
+import { getNextLevelId } from '../../levels/index.js';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
@@ -125,8 +126,8 @@ function handleRegisterSceneTrigger(triggerFn) {
 }
 
 function handleNextLevel() {
-  const nextId = levelStore.currentLevel.id + 1;
-  if (nextId <= progressStore.totalLevels) {
+  const nextId = getNextLevelId(levelStore.currentLevel.id);
+  if (nextId !== null) {
     progressStore.goToLevel(nextId);
   } else {
     progressStore.goToHome();

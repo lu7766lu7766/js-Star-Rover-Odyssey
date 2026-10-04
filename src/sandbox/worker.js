@@ -1,11 +1,14 @@
 /**
  * Star Rover Odyssey - Web Worker Sandbox
  * Runs student code in an isolated environment with restricted APIs
+ *
+ * 遊戲 API 的宣告與記錄在 ./gameApi.js（可在 Node / vitest 直接測試），
+ * 這個檔案只負責 Worker 訊息收發、console 攔截與 L6 的 Mock DOM。
  */
 
 import { MockDocument, MockElement } from './mockDOM.js';
 import { MSG_TYPE } from './protocol.js';
-import { BENCHMARK_STATION_DATA } from '../services/weatherService.js';
+import { createGameApi, runStudentCode } from './gameApi.js';
 
 const workerSelf = self;
 
@@ -48,6 +51,17 @@ function sandboxedAssert(condition, message = '斷言失敗') {
   }
 }
 
+// L6 太空艙儀表板：預埋兩顆按鈕＋狀態燈＋氣閘門
+function seedLevel6Dom(doc) {
+  const seed = (id, tag, text, color) => {
+    doc.elements[id] = new MockElement(id, tag, text, color, doc._onMutation);
+  };
+  seed('disarm-btn', 'button', '解除警報', '#00f2fe');
+  seed('airlock-btn', 'button', '開啟氣閘', '#00f2fe');
+  seed('status-indicator', 'div', '警報中 (ALARM)', 'red');
+  seed('airlock-door', 'div', '氣閘關閉 (LOCKED)', 'gray');
+}
+
 workerSelf.onmessage = function (e) {
   const { type, payload } = e.data || {};
 
@@ -83,240 +97,30 @@ workerSelf.onmessage = function (e) {
       });
     });
 
-    // L6 太空艙儀表板：預埋兩顆按鈕＋狀態燈＋氣閘門
     if (levelId === 6) {
-      const seed = (id, tag, text, color) => {
-        currentMockDoc.elements[id] = new MockElement(id, tag, text, color, currentMockDoc._onMutation);
-      };
-      seed('disarm-btn', 'button', '解除警報', '#00f2fe');
-      seed('airlock-btn', 'button', '開啟氣閘', '#00f2fe');
-      seed('status-indicator', 'div', '警報中 (ALARM)', 'red');
-      seed('airlock-door', 'div', '氣閘關閉 (LOCKED)', 'gray');
+      seedLevel6Dom(currentMockDoc);
     }
 
-    // Game APIs exposed to student code
-    const rover = {
-      setup: (name, battery, isActive) => {
-        recordedAPICalls.push({ api: 'rover.setup', args: [name, battery, isActive] });
+    // Game APIs exposed to student code（宣告表驅動，見 gameApi.js）
+    const gameApi = createGameApi({
+      calls: recordedAPICalls,
+      emit: (apiPayload) => {
         workerSelf.postMessage({
           type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.setup', args: [name, battery, isActive] }
+          payload: apiPayload
         });
       },
-      // L4 maze navigation (records trace for level-4 validate)
-      moveForward: () => {
-        recordedAPICalls.push({ api: 'rover.moveForward', args: [] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.moveForward', args: [] }
-        });
-      },
-      moveBackward: () => {
-        recordedAPICalls.push({ api: 'rover.moveBackward', args: [] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.moveBackward', args: [] }
-        });
-      },
-      turnLeft: () => {
-        recordedAPICalls.push({ api: 'rover.turnLeft', args: [] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.turnLeft', args: [] }
-        });
-      },
-      turnRight: () => {
-        recordedAPICalls.push({ api: 'rover.turnRight', args: [] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.turnRight', args: [] }
-        });
-      },
-      launch: (remainingFuel) => {
-        recordedAPICalls.push({ api: 'rover.launch', args: [remainingFuel] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.launch', args: [remainingFuel] }
-        });
-      },
-      // L2 orbital transfer (records full flight params for level-2 validate)
-      approachStation: (flightPlan) => {
-        recordedAPICalls.push({ api: 'rover.approachStation', args: [flightPlan] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.approachStation', args: [flightPlan] }
-        });
-      },
-      setAutoPilot: (pilotFn) => {
-        let testResults = null;
-        let fnError = null;
-        if (typeof pilotFn === 'function') {
-          try {
-            // 可見情境 3/10/20 + 隱藏邊界 5/7/15/30（驗 </<= 觀念）
-            testResults = {
-              3: pilotFn(3),
-              5: pilotFn(5),
-              7: pilotFn(7),
-              10: pilotFn(10),
-              15: pilotFn(15),
-              20: pilotFn(20),
-              30: pilotFn(30)
-            };
-          } catch (e) {
-            fnError = e.message;
-          }
-        }
-        recordedAPICalls.push({
-          api: 'rover.setAutoPilot',
-          args: [typeof pilotFn === 'function' ? '[Function]' : pilotFn],
-          testResults,
-          fnError,
-          isFunction: typeof pilotFn === 'function'
-        });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'rover.setAutoPilot', testResults, isFunction: typeof pilotFn === 'function' }
-        });
-      },
-      installModule: (moduleObj) => {
-        let activateResult = null;
-        let activateError = null;
-        if (moduleObj && typeof moduleObj.activate === 'function') {
-          try {
-            activateResult = moduleObj.activate();
-          } catch (e) {
-            activateError = e.message;
-          }
-        }
-        recordedAPICalls.push({
-          api: 'rover.installModule',
-          args: [{
-            name: moduleObj?.name,
-            range: moduleObj?.range,
-            mode: moduleObj?.mode,
-            activateResult,
-            activateError,
-            hasActivate: typeof moduleObj?.activate === 'function'
-          }]
-        });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: {
-            api: 'rover.installModule',
-            args: [{
-              name: moduleObj?.name,
-              range: moduleObj?.range,
-              mode: moduleObj?.mode,
-              activateResult,
-              hasActivate: typeof moduleObj?.activate === 'function'
-            }]
-          }
-        });
-      }
-    };
-
-    const drill = {
-      dig: (depthIndex) => {
-        recordedAPICalls.push({ api: 'drill.dig', args: [depthIndex] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'drill.dig', args: [depthIndex] }
-        });
-      }
-    };
-
-    // Level 7 drone fleet initial dataset
-    const drones = initialData?.drones || [
-      { id: "drone-01", x: -6, y: 5, z: 2, battery: 85 },
-      { id: "drone-02", x: -2, y: 7, z: -3, battery: 18 },
-      { id: "drone-03", x: 3, y: 6, z: 1, battery: 92 },
-      { id: "drone-04", x: 7, y: 4, z: -2, battery: 15 }
-    ];
-
-    const droneFleet = {
-      deploy: (droneList) => {
-        recordedAPICalls.push({ api: 'droneFleet.deploy', args: [droneList] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'droneFleet.deploy', args: [droneList] }
-        });
-      }
-    };
-
-    // Level 8 simulated weather API (teaches async/await + JSON paths offline)
-    const fetchStation = async (stationId) => {
-      recordedAPICalls.push({ api: 'fetchStation', args: [stationId] });
-      workerSelf.postMessage({
-        type: MSG_TYPE.GAME_API_CALL,
-        payload: { api: 'fetchStation', args: [stationId] }
-      });
-      const bench = BENCHMARK_STATION_DATA[stationId];
-      if (!bench) {
-        throw new Error(`未知觀測站 "${stationId}"！可用：station-tpe / station-tyo / station-lon / station-dxb / station-rkv`);
-      }
-      return JSON.parse(JSON.stringify(bench));
-    };
-
-    // Level 8 drone launch control
-    const drone = {
-      launch: (stationId) => {
-        recordedAPICalls.push({ api: 'drone.launch', args: [stationId] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'drone.launch', args: [stationId] }
-        });
-      },
-      abortMission: () => {
-        recordedAPICalls.push({ api: 'drone.abortMission', args: [] });
-        workerSelf.postMessage({
-          type: MSG_TYPE.GAME_API_CALL,
-          payload: { api: 'drone.abortMission', args: [] }
-        });
-      }
-    };
+      initialData
+    });
 
     try {
-      // Create execution scope with strict forbidden globals
-      // NOTE: 'eval' and 'arguments' are NOT allowed as formal parameter names in strict mode!
-      const executeFn = new Function(
-        'console',
-        'assert',
-        'rover',
-        'drill',
-        'document',
-        'drones',
-        'droneFleet',
-        'fetchStation',
-        'drone',
-        'window',
-        'self',
-        'globalThis',
-        'fetch',
-        'XMLHttpRequest',
-        'importScripts',
-        'Function',
-        `"use strict";\n${code}`
-      );
-
-      // Execute student code
-      const result = executeFn(
-        sandboxedConsole,
-        sandboxedAssert,
-        rover,
-        drill,
-        currentMockDoc,
-        drones,
-        droneFleet,
-        fetchStation,
-        drone,
-        undefined, // window
-        undefined, // self
-        undefined, // globalThis
-        undefined, // fetch
-        undefined, // XMLHttpRequest
-        undefined, // importScripts
-        undefined  // Function
-      );
+      // Execute student code in a restricted scope
+      const result = runStudentCode(code, {
+        console: sandboxedConsole,
+        assert: sandboxedAssert,
+        document: currentMockDoc,
+        ...gameApi
+      });
 
       // Execute student code, then flush async continuations (L8 async/await):
       // floating promises (e.g. evaluateAndLaunch()) resolve as microtasks,

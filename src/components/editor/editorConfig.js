@@ -60,6 +60,17 @@ export function createLevelCompletions(levelId) {
       { label: 'fetchStation', type: 'function', detail: '(id) 取回觀測站氣象 JSON', apply: 'fetchStation("station-tpe");' },
       { label: 'drone.launch', type: 'function', detail: '(id) 派遣無人機升空', apply: 'drone.launch(stationId);' },
       { label: 'drone.abortMission', type: 'function', detail: '() 中止發射任務', apply: 'drone.abortMission();' }
+    ],
+    9: [
+      { label: 'runner.setAutoRun', type: 'function', detail: '(callback) 註冊跑酷決策函式', apply: 'runner.setAutoRun(decide);' },
+      { label: 'ahead', type: 'variable', detail: '前方一格地形: "gap"|"low"|"high"|"ground"' },
+      { label: '"jump"', type: 'constant', detail: '動作：跳過斷崖或矮欄', apply: '"jump"' },
+      { label: '"slide"', type: 'constant', detail: '動作：滑過高空橫桿', apply: '"slide"' },
+      { label: '"run"', type: 'constant', detail: '動作：平地與終點前進', apply: '"run"' },
+      { label: '"gap"', type: 'constant', detail: '地形：斷崖缺口', apply: '"gap"' },
+      { label: '"low"', type: 'constant', detail: '地形：低矮能量欄', apply: '"low"' },
+      { label: '"high"', type: 'constant', detail: '地形：高空橫桿', apply: '"high"' },
+      { label: '"ground"', type: 'constant', detail: '地形：平坦地面', apply: '"ground"' }
     ]
   };
 

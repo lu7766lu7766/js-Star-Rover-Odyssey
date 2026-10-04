@@ -6,7 +6,20 @@
 
 import { defineStore } from 'pinia';
 import { loadSaveData, saveSaveData, exportSaveFile, importSaveFile, DEFAULT_SAVE_DATA } from '../utils/storage.js';
-import { ALL_LEVELS } from '../levels/index.js';
+import { ALL_LEVELS, getNextLevelId } from '../levels/index.js';
+
+// 跑酷關（id 9）後來才插入第 3、4 關之間；
+// 舊存檔若已解鎖原本的第 4 關（id 4），代表早就過了第 3 關，補解鎖跑酷關避免被擋在外面。
+const PARKOUR_LEVEL_ID = 9;
+const LEVEL_AFTER_PARKOUR_ID = 4;
+
+export function migrateUnlockedLevels(unlocked) {
+  const list = Array.isArray(unlocked) ? [...unlocked] : [1];
+  if (list.includes(LEVEL_AFTER_PARKOUR_ID) && !list.includes(PARKOUR_LEVEL_ID)) {
+    list.push(PARKOUR_LEVEL_ID);
+  }
+  return list;
+}
 
 let debounceSaveTimer = null;
 
@@ -15,14 +28,14 @@ export const useProgressStore = defineStore('progress', {
     const loaded = loadSaveData();
     // Refresh should stay in the same level: restore view only if the saved
     // level is still unlocked, otherwise fall back to home.
-    const unlocked = loaded.unlockedLevels || [1];
+    const unlocked = migrateUnlockedLevels(loaded.unlockedLevels || [1]);
     const restoredView = loaded.currentView === 'level' && unlocked.includes(loaded.currentLevel || 1)
       ? 'level'
       : 'home';
     return {
       currentView: restoredView, // 'home' | 'level' (persisted for refresh restore)
       currentLevelId: loaded.currentLevel || 1,
-      unlockedLevels: loaded.unlockedLevels || [1],
+      unlockedLevels: unlocked,
       completedLevels: loaded.completedLevels || [],
       savedOperations: loaded.savedOperations || {},
       isDeveloperMode: false,
@@ -87,8 +100,8 @@ export const useProgressStore = defineStore('progress', {
       if (!this.completedLevels.includes(levelId)) {
         this.completedLevels.push(levelId);
       }
-      const nextId = levelId + 1;
-      if (nextId <= ALL_LEVELS.length && !this.unlockedLevels.includes(nextId)) {
+      const nextId = getNextLevelId(levelId);
+      if (nextId !== null && !this.unlockedLevels.includes(nextId)) {
         this.unlockedLevels.push(nextId);
       }
       this.persist();
@@ -151,7 +164,7 @@ export const useProgressStore = defineStore('progress', {
         return { success: false, error: result.error };
       }
       this.currentLevelId = result.data.currentLevel;
-      this.unlockedLevels = result.data.unlockedLevels;
+      this.unlockedLevels = migrateUnlockedLevels(result.data.unlockedLevels);
       this.completedLevels = result.data.completedLevels;
       this.savedOperations = result.data.savedOperations || {};
       // Imported save may carry a level view; only honor it when unlocked.

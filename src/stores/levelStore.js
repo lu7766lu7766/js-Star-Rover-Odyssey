@@ -9,6 +9,7 @@ import { useProgressStore } from './progressStore.js';
 import { useDomLabStore } from './domLabStore.js';
 import { soundManager } from '../game/core/SoundManager.js';
 import { sandboxRuntime } from '../sandbox/runtime.js';
+import { findUnfilledBlank } from '../utils/codeAnalysis.js';
 
 function extractLine(stack) {
   if (!stack || typeof stack !== 'string') return '?';
@@ -294,6 +295,23 @@ export const useLevelStore = defineStore('level', {
         this.isExecuting = false;
         return { pass: false, pendingManual: true, error: null };
       } else if (typeof payload.code === 'string') {
+        const blank = findUnfilledBlank(payload.code);
+        if (blank) {
+          const errResult = {
+            pass: false,
+            error: `程式碼中尚有待填空的底線「___」（第 ${blank.line} 行：${blank.text}），請填入對應的數值或指令後再執行！`
+          };
+          this.lastRunResult = errResult;
+          this.appendLog({ type: 'error', message: `⚠️ [未通過] ${errResult.error}` });
+          if (this.sceneActionTrigger) {
+            this.sceneActionTrigger('LEVEL_FAIL', { levelId: currentLevel.id, evaluation: errResult });
+          }
+          if (this.failModalTimer) clearTimeout(this.failModalTimer);
+          this.failModalTimer = setTimeout(() => { this.isFailModalOpen = true; }, 750);
+          this.isExecuting = false;
+          return errResult;
+        }
+
         this.appendLog({ type: 'info', message: '🖥️ 沙箱執行學生程式碼中...' });
         const runRes = await sandboxRuntime.execute({
           code: payload.code,
@@ -365,6 +383,10 @@ export const useLevelStore = defineStore('level', {
         animDuration = 1800;
       } else if (currentLevel.id === 8) {
         animDuration = 2000;
+      } else if (currentLevel.id === 9) {
+        const call = tracePayload.apiCalls?.find((c) => c.api === 'runner.setAutoRun');
+        const frames = call?.runs?.find((r) => r.courseId === 'A')?.frames || [];
+        animDuration = Math.max(1200, Math.min(frames.length * 380, 5500));
       }
 
       // Allow 3D animation to play out
