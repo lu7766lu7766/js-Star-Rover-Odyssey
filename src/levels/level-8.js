@@ -6,25 +6,26 @@
 import { DRONE_FLIGHT_LIMITS, WEATHER_STATIONS, BENCHMARK_STATION_DATA, resolveJsonPath, evaluateTelemetry } from '../services/weatherService.js';
 
 export const LEVEL_8_STARTER_CODE = `// 星際氣象站
-// 沙箱已內建 API，直接呼叫，不用 import
 async function evaluateAndLaunch(stationId) {   // @param {string} stationId 觀測站 id
-  const data = await fetchStation(___);   // @type {string} 站點（直接用參數 stationId）
+  const data = await fetchStation(___);   // @type {string} 觀測站 id
 
   const wind = data.___;                  // @type {number} 風速
   const temp = data.___;                  // @type {number} 氣溫
   const rainProb = data.___;              // @type {number} 降水機率
 
-  console.log(\`基地遙測 ➔ 風速: \${wind}km/h | 氣溫: \${temp}°C | 降水率: \${rainProb}%\`);
-
-  if (___) {   // 安全判斷
-    console.log("符合安全標準，核准發射！");
+  if (___) {   // 總和條件安全判斷，且(&&)，或(||)
     drone.launch(___);   // @type {string} 發射站點（跟 fetch 同一站）
   } else {
-    console.warn("大氣超標，禁止發射！");
     drone.abortMission();
   }
 }
 
+// 發射站點 id
+// station-tpe：台北 
+// station-tyo：東京 
+// station-lon：倫敦 
+// station-dxb：杜拜 
+// station-rkv：雷克雅維克 
 evaluateAndLaunch(___);   // @type {string} 發射站點 id
 `;
 
@@ -76,14 +77,10 @@ async function evaluateAndLaunchDrone(stationId) {
   const temp = data.current.temperature_2m;                   // 氣溫 (°C)
   const rainProb = data.hourly.precipitation_probability[0];  // 降雨機率 (%)
 
-  console.log(\`基地氣象遙測 ➔ 風速: \${wind}km/h | 氣溫: \${temp}°C | 降水率: \${rainProb}%\`);
-
   // 4. 嚴格航太安全規範複合判斷 (AND 邏輯)
   if (wind <= 25 && rainProb <= 20 && temp >= 0) {
-    console.log("氣候完全符合飛行安全標準，無人機核准發射！");
     drone.launch(stationId);
   } else {
-    console.warn("大氣超標或低溫結冰，安全協議禁止發射！");
     drone.abortMission();
   }
 }`,

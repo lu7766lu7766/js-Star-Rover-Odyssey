@@ -178,7 +178,7 @@
           </div>
 
           <div class="json-instruction-hint">
-            💡 <strong>使用指引：</strong>對照下方 JSON 屬性層級，用點運算子寫出取值路徑（例如 <code>current.wind_speed_10m</code>），再到上方編輯器手寫程式。
+            💡 <strong>使用指引：</strong>對照下方 JSON 屬性層級寫出取值路徑：物件用點運算子（如 <code>current.wind_speed_10m</code>），陣列資料用中括號索引取值（如 <code>hourly.precipitation_probability[0]</code> 取第 0 小時數值）。
           </div>
 
           <div class="json-tree-container custom-scrollbar">
@@ -241,17 +241,118 @@
                 </div>
 
                 <div v-show="!isFolded.hourly" class="fold-body">
-                  <div class="tree-line indent-2 highlight-node">
-                    <span class="json-key" title="降水機率鍵名：hourly.precipitation_probability[0]">
-                      "precipitation_probability"
-                    </span>: [ <span class="json-number">{{ currentRawJson?.hourly?.precipitation_probability?.[0] ?? '--' }}</span>, <span class="json-number">{{ currentRawJson?.hourly?.precipitation_probability?.[1] ?? '--' }}</span>, ... ],
-                    <span class="inline-badge">🌧️ 降水機率 (%)</span>
+                  <!-- 降水機率陣列（Level 8 核心觀測標的） -->
+                  <div class="tree-group array-group">
+                    <div
+                      class="tree-line indent-2 tree-fold-header highlight-node"
+                      @click="toggleFold('precipArray')"
+                      title="點擊展開/收合降水機率陣列 (Array)"
+                    >
+                      <component :is="isFolded.precipArray ? ChevronRight : ChevronDown" :size="13" class="fold-arrow" />
+                      <span class="json-key" title="降水機率鍵名：hourly.precipitation_probability[0]">
+                        "precipitation_probability"
+                      </span>:
+                      <span class="json-bracket">[</span>
+                      <span v-if="isFolded.precipArray" class="array-preview">
+                        <span class="json-number">{{ hourlyPrecipitation[0] ?? '--' }}</span>,
+                        <span class="json-number">{{ hourlyPrecipitation[1] ?? '--' }}</span>, ...
+                        <span class="json-bracket">]</span>
+                      </span>
+                      <span class="inline-badge">🌧️ 降水機率・Array({{ hourlyPrecipitation.length }})</span>
+                    </div>
+
+                    <!-- 展開陣列項目與索引 -->
+                    <div v-show="!isFolded.precipArray" class="fold-body">
+                      <div
+                        v-for="(val, idx) in hourlyPrecipitation.slice(0, 6)"
+                        :key="idx"
+                        class="tree-line indent-3 array-element-line"
+                        :class="{ 'target-index-0': idx === 0 }"
+                      >
+                        <span class="array-index" :title="`索引 [${idx}] 取值路徑：hourly.precipitation_probability[${idx}]`">
+                          [{{ idx }}]:
+                        </span>
+                        <span class="array-val"><span class="json-number">{{ val }}</span><span class="json-comma">,</span></span>
+                        <span v-if="idx === 0" class="index-badge-focus" title="取值：hourly.precipitation_probability[0]">
+                          🎯 當前小時 (索引 0)
+                        </span>
+                        <span v-else class="index-badge-sub">
+                          +{{ idx }}h 預報
+                        </span>
+                      </div>
+                      <div v-if="hourlyPrecipitation.length > 6" class="tree-line indent-3 array-more-hint">
+                        <span class="text-muted">... 其餘 {{ hourlyPrecipitation.length - 6 }} 個小時預報數值</span>
+                      </div>
+                      <div class="tree-line indent-2">
+                        <span class="json-bracket">]</span><span class="json-comma">,</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="tree-line indent-2">
-                    <span class="json-key">"wind_speed_10m"</span>: [ <span class="json-number">{{ currentRawJson?.hourly?.wind_speed_10m?.[0] ?? '--' }}</span>, ... ],
+
+                  <!-- 每小時風速陣列 -->
+                  <div class="tree-group array-group">
+                    <div
+                      class="tree-line indent-2 tree-fold-header"
+                      @click="toggleFold('windHourly')"
+                      title="點擊展開/收合風速陣列 (Array)"
+                    >
+                      <component :is="isFolded.windHourly ? ChevronRight : ChevronDown" :size="13" class="fold-arrow" />
+                      <span class="json-key">"wind_speed_10m"</span>:
+                      <span class="json-bracket">[</span>
+                      <span v-if="isFolded.windHourly" class="array-preview">
+                        <span class="json-number">{{ hourlyWindList[0] ?? '--' }}</span>,
+                        <span class="json-number">{{ hourlyWindList[1] ?? '--' }}</span>, ...
+                        <span class="json-bracket">]</span>
+                      </span>
+                      <span class="inline-badge">💨 風速・Array({{ hourlyWindList.length }})</span>
+                    </div>
+                    <div v-show="!isFolded.windHourly" class="fold-body">
+                      <div
+                        v-for="(val, idx) in hourlyWindList.slice(0, 6)"
+                        :key="idx"
+                        class="tree-line indent-3 array-element-line"
+                      >
+                        <span class="array-index">[{{ idx }}]:</span>
+                        <span class="array-val"><span class="json-number">{{ val }}</span><span class="json-comma">,</span></span>
+                        <span class="index-badge-sub">+{{ idx }}h (km/h)</span>
+                      </div>
+                      <div class="tree-line indent-2">
+                        <span class="json-bracket">]</span><span class="json-comma">,</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="tree-line indent-2">
-                    <span class="json-key">"temperature_2m"</span>: [ <span class="json-number">{{ currentRawJson?.hourly?.temperature_2m?.[0] ?? '--' }}</span>, ... ]
+
+                  <!-- 每小時氣溫陣列 -->
+                  <div class="tree-group array-group">
+                    <div
+                      class="tree-line indent-2 tree-fold-header"
+                      @click="toggleFold('tempHourly')"
+                      title="點擊展開/收合氣溫陣列 (Array)"
+                    >
+                      <component :is="isFolded.tempHourly ? ChevronRight : ChevronDown" :size="13" class="fold-arrow" />
+                      <span class="json-key">"temperature_2m"</span>:
+                      <span class="json-bracket">[</span>
+                      <span v-if="isFolded.tempHourly" class="array-preview">
+                        <span class="json-number">{{ hourlyTempList[0] ?? '--' }}</span>,
+                        <span class="json-number">{{ hourlyTempList[1] ?? '--' }}</span>, ...
+                        <span class="json-bracket">]</span>
+                      </span>
+                      <span class="inline-badge">🌡️ 氣溫・Array({{ hourlyTempList.length }})</span>
+                    </div>
+                    <div v-show="!isFolded.tempHourly" class="fold-body">
+                      <div
+                        v-for="(val, idx) in hourlyTempList.slice(0, 6)"
+                        :key="idx"
+                        class="tree-line indent-3 array-element-line"
+                      >
+                        <span class="array-index">[{{ idx }}]:</span>
+                        <span class="array-val"><span class="json-number">{{ val }}</span><span class="json-comma">,</span></span>
+                        <span class="index-badge-sub">+{{ idx }}h (°C)</span>
+                      </div>
+                      <div class="tree-line indent-2">
+                        <span class="json-bracket">]</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div class="tree-line indent-1">
@@ -288,6 +389,7 @@ import {
 } from 'lucide-vue-next';
 import {
   WEATHER_STATIONS,
+  BENCHMARK_STATION_DATA,
   fetchStationWeather
 } from '../../services/weatherService.js';
 import { useLevelStore } from '../../stores/levelStore.js';
@@ -311,7 +413,10 @@ const copied = ref(false);
 
 const isFolded = ref({
   current: false,
-  hourly: false
+  hourly: false,
+  precipArray: false, // 預設展開降水機率陣列，讓玩家一眼看懂陣列結構與索引 [0]
+  windHourly: true,
+  tempHourly: true
 });
 
 onMounted(async () => {
@@ -341,6 +446,43 @@ const currentStation = computed(() => {
 
 const currentRawJson = computed(() => {
   return stationCache.value[selectedStationId.value]?.rawJson || null;
+});
+
+// 解析 Hourly 陣列資料，若連線中或未加載則退回基準測試資料保障 UI 隨時可視化陣列結構
+const hourlyPrecipitation = computed(() => {
+  const rawList = currentRawJson.value?.hourly?.precipitation_probability;
+  if (Array.isArray(rawList)) {
+    return rawList;
+  }
+  const benchmarkList = BENCHMARK_STATION_DATA[selectedStationId.value]?.hourly?.precipitation_probability;
+  if (Array.isArray(benchmarkList)) {
+    return benchmarkList;
+  }
+  return [15, 10, 5, 0, 0, 5];
+});
+
+const hourlyWindList = computed(() => {
+  const rawList = currentRawJson.value?.hourly?.wind_speed_10m;
+  if (Array.isArray(rawList)) {
+    return rawList;
+  }
+  const benchmarkList = BENCHMARK_STATION_DATA[selectedStationId.value]?.hourly?.wind_speed_10m;
+  if (Array.isArray(benchmarkList)) {
+    return benchmarkList;
+  }
+  return [14.2, 13.8, 12.5, 11.0, 10.5, 12.0];
+});
+
+const hourlyTempList = computed(() => {
+  const rawList = currentRawJson.value?.hourly?.temperature_2m;
+  if (Array.isArray(rawList)) {
+    return rawList;
+  }
+  const benchmarkList = BENCHMARK_STATION_DATA[selectedStationId.value]?.hourly?.temperature_2m;
+  if (Array.isArray(benchmarkList)) {
+    return benchmarkList;
+  }
+  return [24.5, 24.0, 23.2, 22.8, 22.0, 21.5];
 });
 
 // Actual Requested API Endpoint URL for the active station
@@ -890,11 +1032,15 @@ function resetCode() {
 }
 
 .indent-1 {
-  padding-left: 1rem;
+  padding-left: 1rem !important;
 }
 
 .indent-2 {
-  padding-left: 1.8rem;
+  padding-left: 1.8rem !important;
+}
+
+.indent-3 {
+  padding-left: 2.6rem !important;
 }
 
 .tree-fold-header {
@@ -961,6 +1107,108 @@ function resetCode() {
   margin-left: auto;
   border: 1px solid #334155;
   white-space: nowrap;
+}
+
+.json-bracket {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.json-comma {
+  color: #94a3b8;
+}
+
+.array-group {
+  margin: 1px 0;
+}
+
+.array-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.22);
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.array-badge-sub {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 0 5px;
+  border-radius: 3px;
+}
+
+.array-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.array-index {
+  color: #c084fc;
+  font-weight: 700;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.array-index:hover {
+  color: #e9d5ff;
+  text-decoration: underline;
+}
+
+.array-element-line {
+  transition: background 0.15s ease;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+.array-element-line:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.target-index-0 {
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 4px;
+}
+
+.array-val {
+  display: inline-flex;
+  align-items: center;
+}
+
+.index-badge-focus {
+  font-size: 0.65rem;
+  color: #38bdf8;
+  background: rgba(14, 165, 233, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  margin-left: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.index-badge-sub {
+  font-size: 0.62rem;
+  color: #64748b;
+  margin-left: 0.25rem;
+  white-space: nowrap;
+}
+
+.array-more-hint {
+  font-size: 0.65rem;
+  color: #64748b;
+  font-style: italic;
+  padding: 1px 0;
 }
 
 /* Right Column: Sensor Slots & Code Preview */
