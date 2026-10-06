@@ -12,20 +12,20 @@ const airlockButton = document.querySelector(___);  // @type {Element} 氣閘按
 const statusEl = document.querySelector(___);       // @type {Element} 狀態燈
 const doorEl = document.querySelector(___);         // @type {Element} 氣閘艙門
 
-let isAlarmActive = true;
+let isAlarmActive = true; // @type {boolean} 警報狀態變數
 
 // 解除警報回呼
-disarmButton.addEventListener(___, () => {   // @type {string} 事件名稱
+disarmButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mouseover"} 事件名稱
   isAlarmActive = false;
-  statusEl.textContent = ___;   // @type {string} 狀態燈文字
-  statusEl.style.color = ___;   // @type {string} 燈號顏色
+  statusEl.textContent = ___;   // @type {"系統正常 (NORMAL)" | "系統故障 (ALARM!)"} 狀態燈文字
+  statusEl.style.color = ___;   // @type {"green" | "red"} 燈號顏色
 });
 
 // 氣閘開門回呼（含守衛判斷）
-airlockButton.addEventListener(___, () => {   // @type {string} 事件名稱
+airlockButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mouseover"} 事件名稱
   if (!___) {   // @type {boolean} 警報狀態變數
-    doorEl.classList.add(___);      // @type {string} 艙門滑開用的 CSS class
-    doorEl.textContent = ___;       // @type {string} 艙門文字
+    doorEl.classList.add(___);      // @type {"open" | "closed"} 艙門滑開用的 CSS class
+    doorEl.textContent = ___;       // @type {"氣閘已開啟 (OPEN" | "氣閘已關閉 (CLOSED)"} 艙門文字
   }
 });
 `;
