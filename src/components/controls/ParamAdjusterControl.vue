@@ -19,7 +19,7 @@
         <div class="code-mode-header">
           <div class="code-mode-title">
             <Code :size="15" class="text-brand" />
-            <span>手寫 JS 挑戰 · 把 ___ 補成數字再執行</span>
+            <span>手寫 JS 挑戰 · 把 ___ 補齊算式與變數再執行</span>
           </div>
           <span class="badge badge-info">變數 + * = 3星</span>
         </div>
