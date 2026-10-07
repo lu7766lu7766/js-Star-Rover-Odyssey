@@ -202,14 +202,26 @@ const failureSuggestionText = computed(() => {
 });
 
 const droneFleetData = computed(() => {
+  const basePositions = [
+    { x: -6, y: 5, z: 2 },
+    { x: -2, y: 7, z: -3 },
+    { x: 3, y: 6, z: 1 },
+    { x: 7, y: 4, z: -2 }
+  ];
   if (props.lastRunResult?.data?.fleet) {
-    return props.lastRunResult.data.fleet;
+    return props.lastRunResult.data.fleet.map((d, i) => ({
+      ...d,
+      x: d.x ?? basePositions[i]?.x ?? 0,
+      y: d.y ?? basePositions[i]?.y ?? 5,
+      z: d.z ?? basePositions[i]?.z ?? 0,
+      status: (d.order === 'RETURN_BASE' || d.battery < 20) ? 'WARNING' : d.order || 'PATROL'
+    }));
   }
   return [
-    { id: "drone-01", x: -6, y: 5, z: 2, battery: 85, status: 'STANDBY' },
-    { id: "drone-02", x: -2, y: 7, z: -3, battery: 18, status: 'STANDBY' },
-    { id: "drone-03", x: 3, y: 6, z: 1, battery: 92, status: 'STANDBY' },
-    { id: "drone-04", x: 7, y: 4, z: -2, battery: 15, status: 'STANDBY' }
+    { id: "DRONE-01", x: -6, y: 5, z: 2, battery: 85, status: 'STANDBY' },
+    { id: "DRONE-02", x: -2, y: 7, z: -3, battery: 15, status: 'STANDBY' },
+    { id: "DRONE-03", x: 3, y: 6, z: 1, battery: 92, status: 'STANDBY' },
+    { id: "DRONE-04", x: 7, y: 4, z: -2, battery: 12, status: 'STANDBY' }
   ];
 });
 

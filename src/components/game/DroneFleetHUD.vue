@@ -75,9 +75,9 @@ defineProps({
     type: Array,
     default: () => [
       { id: "drone-01", x: -6, y: 5, z: 2, battery: 85, status: 'STANDBY' },
-      { id: "drone-02", x: -2, y: 7, z: -3, battery: 18, status: 'STANDBY' },
+      { id: "drone-02", x: -2, y: 7, z: -3, battery: 15, status: 'STANDBY' },
       { id: "drone-03", x: 3, y: 6, z: 1, battery: 92, status: 'STANDBY' },
-      { id: "drone-04", x: 7, y: 4, z: -2, battery: 15, status: 'STANDBY' }
+      { id: "drone-04", x: 7, y: 4, z: -2, battery: 12, status: 'STANDBY' }
     ]
   }
 });

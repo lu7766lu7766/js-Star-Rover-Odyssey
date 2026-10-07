@@ -3,7 +3,7 @@
     <div class="deck-header">
       <div class="deck-title-group">
         <ListFilter :size="18" class="text-brand" />
-        <h3 class="deck-title">陣列清單檢視與批次遍歷 · Array Fleet Dispatch</h3>
+        <h3 class="deck-title">陣列宣告與批次遍歷 · Array Fleet Dispatch</h3>
       </div>
       <div class="header-actions">
         <button class="btn btn-ghost btn-sm" @click="resetDefaults" title="還原場景與參數至最初狀態">
@@ -19,7 +19,7 @@
         <div class="code-mode-header">
           <div class="code-mode-title">
             <Code :size="15" class="text-brand" />
-            <span>手寫 JS 挑戰 · 把 ___ 補完再執行</span>
+            <span>手寫 JS 挑戰 · 陣列宣告與 forEach 遍歷</span>
           </div>
           <span class="badge badge-info">forEach = 3星</span>
         </div>
@@ -47,50 +47,12 @@
           </div>
         </div>
       </div>
-
-      <!-- Array Inspector Table（唯讀資料集：讀出每架電量再寫 forEach） -->
-      <div class="array-card card">
-        <div class="array-header">
-          <span class="box-label">無人機陣列清單 (const drones = [ ... ])：</span>
-          <span class="badge badge-blue">共 {{ dronesData.length }} 筆資料元素</span>
-        </div>
-
-        <div class="drones-table-wrap">
-          <table class="drones-table">
-            <thead>
-              <tr>
-                <th>索引 (Index)</th>
-                <th>機體代號 (id)</th>
-                <th>名稱 (name)</th>
-                <th>目前電量 (battery)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(drone, idx) in dronesData"
-                :key="drone.id"
-              >
-                <td class="font-mono">[{{ idx }}]</td>
-                <td class="font-mono">{{ drone.id }}</td>
-                <td><strong>{{ drone.name }}</strong></td>
-                <td>
-                  <div class="battery-cell">
-                    <span class="battery-pill">
-                      <span>{{ drone.battery }}%</span>
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
 
     <!-- Execute Bar -->
     <div class="deck-footer">
       <div class="footer-hint">
-        寫碼模式：在上方編輯器按「執行 JS 程式碼」（forEach 逐架判斷）
+        觀察程式碼中的 const drones 陣列，為每架無人機指派安全指令後點擊「執行 JS 程式碼」
       </div>
     </div>
   </div>
@@ -119,11 +81,17 @@ const studentCode = ref(LEVEL_7_STARTER_CODE);
 onMounted(() => {
   const saved = progressStore.getSavedOperation(7);
   if (saved && typeof saved.code === 'string' && saved.code.length > 0) {
-    studentCode.value = saved.code;
+    // 若暫存為未包含 const drones 的舊版程式碼，自動遷移至直觀的新版陣列樣板
+    if (!saved.code.includes('const drones')) {
+      studentCode.value = LEVEL_7_STARTER_CODE;
+    } else {
+      studentCode.value = saved.code;
+    }
   }
 });
 
 function resetDefaults() {
+  studentCode.value = LEVEL_7_STARTER_CODE;
   levelStore.resetCurrentLevel();
 }
 
@@ -187,74 +155,7 @@ function resetCode() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.array-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.85rem;
-}
-
-.array-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.box-label {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--primary-blue);
-}
-
-.drones-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.drones-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-
-.drones-table th {
-  background: var(--bg-panel-hover);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  font-weight: 700;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.drones-table td {
-  padding: 0.45rem 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.font-mono {
-  font-family: var(--font-mono);
-}
-
-.battery-cell {
-  display: flex;
-  align-items: center;
-}
-
-.battery-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: 9999px;
-  font-weight: 700;
-  font-size: 0.75rem;
-  background: var(--bg-panel-hover);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+  min-height: 0;
 }
 
 .deck-footer {
@@ -286,6 +187,8 @@ function resetCode() {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  flex: 1;
+  min-height: 0;
 }
 
 .code-mode-header {
@@ -304,7 +207,8 @@ function resetCode() {
 }
 
 .code-editor-wrap {
-  height: 240px;
+  flex: 1;
+  min-height: 340px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   overflow: hidden;

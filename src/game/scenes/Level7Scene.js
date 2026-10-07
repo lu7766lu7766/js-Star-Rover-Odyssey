@@ -21,9 +21,9 @@ export class Level7Scene extends BaseGameScene {
 
     const initialDrones = [
       { id: "drone-01", x: -6, y: 5, z: 2, battery: 85 },
-      { id: "drone-02", x: -2, y: 7, z: -3, battery: 18 },
+      { id: "drone-02", x: -2, y: 7, z: -3, battery: 15 },
       { id: "drone-03", x: 3, y: 6, z: 1, battery: 92 },
-      { id: "drone-04", x: 7, y: 4, z: -2, battery: 15 }
+      { id: "drone-04", x: 7, y: 4, z: -2, battery: 12 }
     ];
 
     this.drones = [];
@@ -42,9 +42,9 @@ export class Level7Scene extends BaseGameScene {
 
     const initialDrones = [
       { id: "drone-01", x: -6, y: 5, z: 2, battery: 85 },
-      { id: "drone-02", x: -2, y: 7, z: -3, battery: 18 },
+      { id: "drone-02", x: -2, y: 7, z: -3, battery: 15 },
       { id: "drone-03", x: 3, y: 6, z: 1, battery: 92 },
-      { id: "drone-04", x: 7, y: 4, z: -2, battery: 15 }
+      { id: "drone-04", x: 7, y: 4, z: -2, battery: 12 }
     ];
 
     this.drones.forEach((mesh, idx) => {
@@ -72,8 +72,18 @@ export class Level7Scene extends BaseGameScene {
       const fleetConfig = payload.payload?.fleetConfig || payload.fleetConfig || {};
       const threshold = fleetConfig.batteryThreshold || 20;
 
-      this.drones.forEach(mesh => {
-        const isLow = mesh.userData.battery < threshold;
+      const deployCalls = payload.payload?.apiCalls?.filter(c => c.api === 'droneFleet.deploy') || [];
+      const deployedList = deployCalls.length > 0 ? deployCalls[deployCalls.length - 1].args[0] : null;
+
+      this.drones.forEach((mesh, idx) => {
+        let isLow = false;
+        if (deployedList && deployedList[idx]) {
+          const d = deployedList[idx];
+          const order = d.order ?? d.status;
+          isLow = order === 'RETURN_BASE' || (Number(d.battery) < threshold);
+        } else {
+          isLow = mesh.userData.battery < threshold;
+        }
         mesh.userData.status = isLow ? 'WARNING' : 'PATROL';
         if (mesh.userData.beaconMat) {
           mesh.userData.beaconMat.color.setHex(isLow ? 0xef4444 : 0x10b981);

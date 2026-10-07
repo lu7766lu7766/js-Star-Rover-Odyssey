@@ -49,10 +49,10 @@ export const BLOCKED_GLOBALS = Object.freeze([
 ]);
 
 const DEFAULT_DRONES = [
-  { id: 'drone-01', x: -6, y: 5, z: 2, battery: 85 },
-  { id: 'drone-02', x: -2, y: 7, z: -3, battery: 18 },
-  { id: 'drone-03', x: 3, y: 6, z: 1, battery: 92 },
-  { id: 'drone-04', x: 7, y: 4, z: -2, battery: 15 }
+  { id: 'DRONE-01', name: '游隼號', battery: 85, model: 'Recon-X' },
+  { id: 'DRONE-02', name: '夜梟號', battery: 15, model: 'Stealth-V' },
+  { id: 'DRONE-03', name: '海鵰號', battery: 92, model: 'Heavy-T' },
+  { id: 'DRONE-04', name: '雀鷹號', battery: 12, model: 'Scout-M' }
 ];
 
 /**
@@ -182,8 +182,14 @@ export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
  * @returns {any} 學生程式碼的回傳值（可能是 Promise）
  */
 export function runStudentCode(code, globals) {
-  const injected = Object.keys(globals);
-  const blocked = BLOCKED_GLOBALS.filter((name) => !(name in globals));
+  // 若學生程式碼在頂層自行宣告了同名變數（如 const drones = [...]），
+  // 該名稱不應作為 Function 參數傳入，否則會觸發 JS SyntaxError: Identifier '...' has already been declared
+  const declaredInCode = new Set(
+    (code.match(/\b(?:const|let|var|function\*?|class)\s+([a-zA-Z_$][0-9a-zA-Z_$]*)/g) || [])
+      .map((m) => m.replace(/^(?:const|let|var|function\*?|class)\s+/, '').trim())
+  );
+  const injected = Object.keys(globals).filter((name) => !declaredInCode.has(name));
+  const blocked = BLOCKED_GLOBALS.filter((name) => !(name in globals) && !declaredInCode.has(name));
   const names = [...injected, ...blocked];
   const values = names.map((name) => globals[name]); // blocked 的值為 undefined
   // eslint-disable-next-line no-new-func

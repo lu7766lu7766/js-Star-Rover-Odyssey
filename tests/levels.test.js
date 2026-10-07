@@ -8,6 +8,8 @@ import level6 from '../src/levels/level-6.js';
 import level7 from '../src/levels/level-7.js';
 import level8 from '../src/levels/level-8.js';
 import { evaluateTelemetry, resolveJsonPath, BENCHMARK_STATION_DATA, DRONE_FLIGHT_LIMITS } from '../src/services/weatherService.js';
+import { createGameApi, runStudentCode } from '../src/sandbox/gameApi.js';
+import { LEVEL_7_STARTER_CODE } from '../src/levels/level-7.js';
 
 describe('Star Rover Odyssey 2.0 - Level Validation Engine', () => {
   // Level 1: Variable Declaration & Data Types
@@ -612,6 +614,23 @@ for (let k = 0; k < 2; k++) { rover.moveForward(); }`;
     const missing7 = level7.validate({ apiCalls: [{ api: 'rover.setup', args: [] }], code: '' });
     expect(missing7.pass).toBe(false);
     expect(missing7.error).toContain('droneFleet.deploy');
+
+    // Verification: code explicitly declaring `const drones = [...]` runs in sandbox without SyntaxError
+    expect(LEVEL_7_STARTER_CODE).toContain('const drones = [');
+    const studentCodeWithConst = LEVEL_7_STARTER_CODE
+      .replace('drone.battery < ___', 'drone.battery < 20')
+      .replace('drone.order = ___;   // @type {"RETURN_BASE" | "PATROL"} 低電量指令', 'drone.order = "RETURN_BASE";')
+      .replace('drone.order = ___;   // @type {"RETURN_BASE" | "PATROL"} 高電量指令', 'drone.order = "PATROL";');
+
+    const sandboxCalls = [];
+    const sandboxApi = createGameApi({ calls: sandboxCalls });
+    runStudentCode(studentCodeWithConst, { ...sandboxApi });
+    expect(sandboxCalls.length).toBe(1);
+    expect(sandboxCalls[0].api).toBe('droneFleet.deploy');
+
+    const validatedResult = level7.validate({ apiCalls: sandboxCalls, code: studentCodeWithConst });
+    expect(validatedResult.pass).toBe(true);
+    expect(validatedResult.data.stars).toBe(3);
   });
 
   // L6 code mode: wiring + two-order click snapshots
