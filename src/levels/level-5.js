@@ -55,7 +55,7 @@ const scanModule = {
   range: scanParams.range,
   mode: scanParams.mode,
   activate: function() {
-    return ___;    // 掃描回傳值
+    return ___;    // @type {"SCAN_COMPLETE" | "PARTIAL_SINGLE" | "PARTIAL_NEAR"} 掃描回傳值
   }
 };
 
