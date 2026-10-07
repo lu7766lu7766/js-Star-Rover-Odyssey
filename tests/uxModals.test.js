@@ -8,6 +8,7 @@ import { Level3Scene } from '../src/game/scenes/Level3Scene.js';
 import { Level4Scene } from '../src/game/scenes/Level4Scene.js';
 import { Level5Scene } from '../src/game/scenes/Level5Scene.js';
 import { Level8Scene } from '../src/game/scenes/Level8Scene.js';
+import { useDomLabStore } from '../src/stores/domLabStore.js';
 
 const mockStorage = {};
 globalThis.localStorage = {
@@ -69,6 +70,35 @@ describe('Star Rover Odyssey 2.0 - Failure Alert Modal & Vehicle Restore Suite',
 
     levelStore.closeSuccessModal();
     expect(levelStore.isSuccessModalOpen).toBe(false);
+  });
+
+  it('LevelStore: Level 6 delays success modal until door opening animation (1.2s) finishes plus 1s (total 2.2s)', () => {
+    const levelStore = useLevelStore();
+    const progressStore = useProgressStore();
+    const domLabStore = useDomLabStore();
+    progressStore.isDeveloperMode = true;
+    progressStore.goToLevel(6);
+
+    levelStore.l6CodeApproved = true;
+    domLabStore.disarmed = true;
+    domLabStore.airlockOpen = true;
+
+    levelStore.checkL6ManualCompletion();
+
+    // Immediately: modal should NOT be open yet
+    expect(levelStore.isSuccessModalOpen).toBe(false);
+
+    // At 1200ms (door opening animation finishes): modal still not open (waiting 1s more)
+    vi.advanceTimersByTime(1200);
+    expect(levelStore.isSuccessModalOpen).toBe(false);
+
+    // At 2199ms: modal still not open
+    vi.advanceTimersByTime(999);
+    expect(levelStore.isSuccessModalOpen).toBe(false);
+
+    // At 2200ms: modal opens!
+    vi.advanceTimersByTime(1);
+    expect(levelStore.isSuccessModalOpen).toBe(true);
   });
 
   it('LevelStore: restoreVehiclePosition triggers RESET_POSITION and closes failure modal', async () => {

@@ -17,7 +17,7 @@ let isAlarmActive = true; // @type {boolean} 警報狀態變數
 // 解除警報回呼
 disarmButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mouseover"} 事件名稱
   isAlarmActive = false;
-  statusEl.textContent = ___;   // @type {"系統正常 (NORMAL)" | "系統故障 (ALARM!)"} 狀態燈文字
+  statusEl.textContent = ___;   // @type {"警報系統關閉" | "系統故障"} 狀態燈文字
   statusEl.style.color = ___;   // @type {"green" | "red"} 燈號顏色
 });
 
@@ -25,7 +25,7 @@ disarmButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mo
 airlockButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mouseover"} 事件名稱
   if (!___) {   // @type {boolean} 警報狀態變數
     doorEl.classList.add(___);      // @type {"open" | "closed"} 艙門滑開用的 CSS class
-    doorEl.textContent = ___;       // @type {"氣閘已開啟 (OPEN)" | "氣閘已關閉 (CLOSED)"} 艙門文字
+    doorEl.textContent = ___;       // @type {"氣閘已開啟" | "氣閘已關閉"} 艙門文字
   }
 });
 `;
@@ -40,8 +40,8 @@ export default {
   targetRequirements: [
     '用 querySelector 選取 4 個元素（順序不可調換：第 1 行解除警報按鈕、第 2 行氣閘按鈕、第 3 行狀態燈 #status-indicator、第 4 行艙門 #airlock-door，id 寫在 2D 網頁各元素上方，選擇器為字串加引號、id 前面加 #）',
     '為兩顆按鈕接回 "click" 事件',
-    '解除警報回呼：把 isAlarmActive 改為 false。並改寫狀態燈文字為：系統正常 (NORMAL)。顏色改為green。',
-    '氣閘回呼：先用 if 守衛判斷「警報已解除」才放行，把艙門加上滑開用的 CSS class：open。並改寫門文字：氣閘已開啟 (OPEN)。',
+    '解除警報回呼：把 isAlarmActive 改為 false。並改寫狀態燈文字為：警報系統關閉。顏色改為green。',
+    '氣閘回呼：先用 if 守衛判斷「警報已解除」才放行，把艙門加上滑開用的 CSS class：open。並改寫門文字：氣閘已開啟。',
   ],
   controlType: 'dom-events',
   initialBindings: {
@@ -71,7 +71,7 @@ let isAlarmActive = true;
 // 1. 接線：解除警報按鈕
 disarmButton.addEventListener('click', () => {
   isAlarmActive = false;
-  statusEl.textContent = '系統正常 (NORMAL)'; // ← 直接改網頁文字！
+  statusEl.textContent = '警報系統關閉'; // ← 直接改網頁文字！
   statusEl.style.color = 'green';             // ← 直接改網頁樣式！
 });
 
@@ -79,7 +79,7 @@ disarmButton.addEventListener('click', () => {
 airlockButton.addEventListener('click', () => {
   if (!isAlarmActive) {
     doorEl.classList.add('open');             // ← 加上 CSS class，門就滑開！
-    doorEl.textContent = '氣閘已開啟 (OPEN)';
+    doorEl.textContent = '氣閘已開啟';
   } else {
     alert('警報中，安全協議禁止開門！');
   }
@@ -123,7 +123,7 @@ airlockButton.addEventListener('click', () => {
       const isDoorOpen = (door) =>
         (door.classes || []).includes('open') || /OPEN|開啟/.test(door.innerText || '');
       const isStatusNormal = (st) =>
-        /NORMAL|正常/.test(st.innerText || '') || /green/i.test(st.style?.color || '');
+        /NORMAL|正常|關閉|DISARM/i.test(st.innerText || '') || /green/i.test(st.style?.color || '');
 
       // 錯誤順序先驗：警報中開門必須被擋下（守衛判斷）
       if (isDoorOpen(doorOf(wrong))) {
@@ -135,7 +135,7 @@ airlockButton.addEventListener('click', () => {
       if (!isStatusNormal(statusOf(correct))) {
         return {
           pass: false,
-          error: '解除警報沒生效！點擊 #disarm-btn 後，#status-indicator 應該轉為正常（改 textContent 和 style.color 試試）。'
+          error: '解除警報沒生效！點擊 #disarm-btn 後，#status-indicator 應該轉為警報系統關閉（改 textContent 和 style.color 試試）。'
         };
       }
       if (!isDoorOpen(doorOf(correct))) {

@@ -36,9 +36,7 @@
             class="status-card"
             :class="dom.disarmed ? 'ok' : 'alarm'"
           >
-            <div class="status-top">
-              <span class="live-dot" :style="{ background: dom.statusColor }"></span>
-            </div>
+            
             <div class="status-main">
               <span class="status-lamp" :style="{ background: dom.statusColor }"></span>
               <strong>{{ dom.statusText }}</strong>
@@ -284,7 +282,6 @@ const treePreview = computed(() => {
 .status-card.ok { border-color: #10b981; background: #ecfdf5; }
 .status-top { display: flex; justify-content: space-between; align-items: center; }
 .status-top code { font-size: 0.7rem; color: #64748b; font-family: var(--font-mono); }
-.live-dot { width: 10px; height: 10px; border-radius: 50%; animation: pulse 1.4s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 .status-main { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }
 .status-lamp { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }

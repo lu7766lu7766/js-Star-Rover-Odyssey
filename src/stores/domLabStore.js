@@ -39,7 +39,7 @@ export const useDomLabStore = defineStore('domLab', {
       };
     },
     statusText(state) {
-      return state.disarmed ? '系統正常 (NORMAL)' : '警戒鎖定中 (ALARM ACTIVE)';
+      return state.disarmed ? '警報系統關閉' : '警戒鎖定中';
     },
     statusColor(state) {
       return state.disarmed ? '#10b981' : '#ef4444';
@@ -47,11 +47,11 @@ export const useDomLabStore = defineStore('domLab', {
     liveJsCode(state) {
       const disarmCb =
         state.disarmAction === 'DISARM_ALARM'
-          ? `  isAlarmActive = false;\n  statusEl.textContent = '系統正常 (NORMAL)';\n  statusEl.style.color = 'green';`
+          ? `  isAlarmActive = false;\n  statusEl.textContent = '警報系統關閉';\n  statusEl.style.color = 'green';`
           : `  // ❌ 綁錯動作！全艙緊急封鎖與解除警報無關`;
       const airlockCb =
         state.airlockAction === 'OPEN_AIRLOCK'
-          ? `  if (!isAlarmActive) {\n    doorEl.classList.add('open');\n    doorEl.textContent = '氣閘已開啟 (OPEN)';\n  }`
+          ? `  if (!isAlarmActive) {\n    doorEl.classList.add('open');\n    doorEl.textContent = '氣閘已開啟';\n  }`
           : `  // ❌ 綁錯動作！解除警報無法開門`;
       return `const disarmBtn = document.querySelector('#disarm-btn');\nconst airlockBtn = document.querySelector('#airlock-btn');\nconst statusEl = document.querySelector('#status-indicator');\nconst doorEl = document.querySelector('#airlock-door');\n\nlet isAlarmActive = ${state.disarmed ? 'false' : 'true'};\n\ndisarmBtn.addEventListener('${state.disarmEvent}', () => {\n${disarmCb}\n});\n\nairlockBtn.addEventListener('${state.airlockEvent}', () => {\n${airlockCb}\n});`;
     }
@@ -142,8 +142,8 @@ export const useDomLabStore = defineStore('domLab', {
         if (this.disarmAction === 'DISARM_ALARM') {
           if (!this.disarmed) {
             this.disarmed = true;
-            this.setNotice('【DOM 更新】statusEl.textContent =「系統正常」；style 轉綠燈！警報解除。', 'success');
-            this.pushLog('dom', '✅ #status-indicator.textContent →「系統正常 (NORMAL)」/ style.color → green');
+            this.setNotice('【DOM 更新】statusEl.textContent =「警報系統關閉」；style 轉綠燈！警報解除。', 'success');
+            this.pushLog('dom', '✅ #status-indicator.textContent →「警報系統關閉」/ style.color → green');
           } else {
             this.setNotice('警報已經解除了，可以去開氣閘門。', 'success');
           }

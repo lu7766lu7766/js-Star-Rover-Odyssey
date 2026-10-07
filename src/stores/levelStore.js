@@ -168,12 +168,14 @@ export const useLevelStore = defineStore('level', {
       });
       if (this.failModalTimer) clearTimeout(this.failModalTimer);
       this.isFailModalOpen = false;
-      // L6 無 3D 勝利動畫要等，直接彈窗
+      // 開門動畫跑完 (1.2 秒) + 再等 1 秒，才跳出成功彈窗 (合計 2200 毫秒)
       if (this.successModalTimer) clearTimeout(this.successModalTimer);
-      try {
-        soundManager.playSuccess();
-      } catch (e) {}
-      this.isSuccessModalOpen = true;
+      this.successModalTimer = setTimeout(() => {
+        try {
+          soundManager.playSuccess();
+        } catch (e) {}
+        this.isSuccessModalOpen = true;
+      }, 2200);
       return evaluation;
     },
 

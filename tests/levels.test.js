@@ -645,13 +645,13 @@ for (let k = 0; k < 2; k++) { rover.moveForward(); }`;
       'airlock-door': el([], '氣閘關閉 (LOCKED)', { color: 'gray' })
     };
     const correct = {
-      'status-indicator': el([], '系統正常 (NORMAL)', { color: 'green' }),
-      'airlock-door': el([], '氣閘已開啟 (OPEN)', { color: 'green' }, ['open'])
+      'status-indicator': el([], '警報系統關閉', { color: 'green' }),
+      'airlock-door': el([], '氣閘已開啟', { color: 'green' }, ['open'])
     };
     const wrong = {
       'airlock-door': el([], '氣閘關閉 (LOCKED)', { color: 'gray' })
     };
-    const code = 'document.querySelector("#disarm-btn").addEventListener("click", () => { statusEl.textContent = "NORMAL"; statusEl.style.color = "green"; }); doorEl.classList.add("open");';
+    const code = 'document.querySelector("#disarm-btn").addEventListener("click", () => { statusEl.textContent = "警報系統關閉"; statusEl.style.color = "green"; }); doorEl.classList.add("open");';
 
     const best = level6.validate({ domWiring: wiring, domCorrect: correct, domWrong: wrong, code });
     expect(best.pass).toBe(true);
@@ -662,7 +662,7 @@ for (let k = 0; k < 2; k++) { rover.moveForward(); }`;
     expect(level6.validate({ domWiring: badWire, domCorrect: correct, domWrong: wrong, code }).pass).toBe(false);
 
     // guard missing: wrong order opens door -> fail
-    const noGuard = { 'airlock-door': el([], '氣閘已開啟 (OPEN)', {}, ['open']) };
+    const noGuard = { 'airlock-door': el([], '氣閘已開啟', {}, ['open']) };
     const noGuardRes = level6.validate({ domWiring: wiring, domCorrect: correct, domWrong: noGuard, code });
     expect(noGuardRes.pass).toBe(false);
     expect(noGuardRes.error).toContain('安全協議');
