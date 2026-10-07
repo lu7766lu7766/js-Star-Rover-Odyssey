@@ -25,7 +25,7 @@ disarmButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mo
 airlockButton.addEventListener(___, () => {   // @type {"click" | "dbclick" | "mouseover"} 事件名稱
   if (!___) {   // @type {boolean} 警報狀態變數
     doorEl.classList.add(___);      // @type {"open" | "closed"} 艙門滑開用的 CSS class
-    doorEl.textContent = ___;       // @type {"氣閘已開啟 (OPEN" | "氣閘已關閉 (CLOSED)"} 艙門文字
+    doorEl.textContent = ___;       // @type {"氣閘已開啟 (OPEN)" | "氣閘已關閉 (CLOSED)"} 艙門文字
   }
 });
 `;
