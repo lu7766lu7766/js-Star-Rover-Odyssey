@@ -56,20 +56,6 @@ export default {
     answer: 1,
     explain: 'JSON 是一層包一層的物件，要沿著路徑用點運算子一層層往下取：data → current → wind_speed_10m。'
   },
-  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
-  parsons: {
-    prompt: '等台北站的氣象資料回來，再取出風速印出來。',
-    solution: [
-      'async function showWeather() {',
-      '  const data = await fetchStation("station-tpe");',
-      '  const wind = data.current.wind_speed_10m;',
-      '  console.log("風速：" + wind);',
-      '}',
-      'showWeather();'
-    ],
-    distractors: ['  const data = fetchStation("station-tpe");'],
-    explain: '網路資料需要時間才會回來，前面要加 await 等它；用 await 的函式要宣告成 async。'
-  },
   concepts: ['Web API (fetch)', 'JSON 物件樹與屬性取值', '非同步資料交換 (Async/Await)', '多站點氣候安全決策'],
   description: `高空探測無人機準備升空進行行星高層大氣測繪！然而無人機具備嚴格的航太硬體安全極限（風速 ≤ 25 km/h、降雨 ≤ 20%、氣溫 ≥ 0°C，三個都要過才 launch，否則 abort）。我們需要向「星際氣象 API (Open-Meteo)」請求真實即時大氣 JSON 資料。沙箱已內建 API，直接呼叫不用 import：fetchStation(stationId) 回傳該站氣象 JSON（非同步，前面一定要加 await）；drone.launch(stationId) / drone.abortMission() 發射或中止（launch 要傳跟 fetch 同一站）。fetchStation 回傳的 data 就是下方「API 回傳原始 JSON 物件樹」那一份：最外層有 current 物件（風速、氣溫等數字鍵）和 hourly 物件（降水機率陣列等），鍵名不用背，照著 JSON 樹層級用 data.層級.鍵名寫出，陣列要加 [0]，取出的風速 / 氣溫 / 降水皆為數字（路徑寫法，不是字串，不加引號）。請檢視 API 回傳的樹狀結構，為無人機感測器配置正確的取值路徑，並比對全球 5 大觀測基地（station-tpe / station-tyo / station-lon / station-dxb / station-rkv，先比對 5 站數據再選），找出唯一符合全安全窗口的基地派遣無人機升空！站點 id 為字串（加引號），安全判斷用 wind、rainProb、temp 以 && 串起三合一條件。`,
   targetRequirements: [

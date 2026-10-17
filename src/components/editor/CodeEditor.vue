@@ -3,26 +3,16 @@
     <!-- Flight Computer Tab Header -->
     <div class="editor-header">
       <div class="header-left">
-        <button class="file-tab" :class="{ 'is-active': mode === 'code' }" @click="mode = 'code'">
+        <div class="file-tab is-active">
           <FileCode :size="14" class="icon-file" />
           <span class="file-name">solution.js</span>
           <span class="status-indicator" title="程式碼已即時自動快取">
             <span class="beacon-dot success"></span>
           </span>
-        </button>
-        <button
-          v-if="puzzle"
-          class="file-tab parsons-tab"
-          :class="{ 'is-active': mode === 'parsons' }"
-          title="先用排程式碼的方式熱身，再回來寫本關"
-          @click="mode = 'parsons'"
-        >
-          <span>🧩 暖身排排看</span>
-          <span v-if="progressStore.isParsonsDone(levelId)" class="parsons-done">✓</span>
-        </button>
+        </div>
       </div>
 
-      <div v-show="mode === 'code'" class="header-right">
+      <div class="header-right">
         <div class="shortcut-tip" title="在編輯器裡按這組快捷鍵也能執行">
           <span>{{ runShortcutLabel }} 執行</span>
         </div>
@@ -38,24 +28,16 @@
       </div>
     </div>
 
-    <!-- CodeMirror Viewport Container（切到暖身時只是藏起來，程式碼不會不見） -->
-    <div v-show="mode === 'code'" class="editor-viewport" ref="editorParent"></div>
-
-    <!-- 暖身排排看 -->
-    <ParsonsPuzzle
-      v-if="puzzle && mode === 'parsons'"
-      class="editor-viewport"
-      :puzzle="puzzle"
-      @solved="progressStore.markParsonsDone(levelId)"
-    />
+    <!-- CodeMirror Viewport Container -->
+    <div class="editor-viewport" ref="editorParent"></div>
 
     <!-- 逐行追蹤工具列：執行後出現，可以一步一步看程式怎麼跑 -->
-    <TracePlayer v-show="mode === 'code'" />
+    <TracePlayer />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { FileCode, RotateCcw } from 'lucide-vue-next';
 import { EditorState, Compartment, StateField, StateEffect } from '@codemirror/state';
 import { EditorView, Decoration, WidgetType, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, keymap } from '@codemirror/view';
@@ -68,9 +50,6 @@ import { createLevelCompletions } from './editorConfig.js';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { fixFullWidth } from '../../utils/errorTranslator.js';
 import TracePlayer from '../controls/TracePlayer.vue';
-import ParsonsPuzzle from './ParsonsPuzzle.vue';
-import { useProgressStore } from '../../stores/progressStore.js';
-import { getLevelById } from '../../levels/index.js';
 
 const props = defineProps({
   modelValue: {
@@ -86,16 +65,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change', 'reset', 'run']);
 
 const levelStore = useLevelStore();
-const progressStore = useProgressStore();
 const editorParent = ref(null);
 
-// 'code' 寫程式 / 'parsons' 暖身排排看
-const mode = ref('code');
-const puzzle = computed(() => getLevelById(props.levelId)?.parsons || null);
-// 按下執行或程式出錯時，自動切回程式碼畫面
-watch(() => levelStore.isExecuting, (running) => {
-  if (running) mode.value = 'code';
-});
 let view = null;
 const completionCompartment = new Compartment();
 
@@ -410,8 +381,6 @@ onBeforeUnmount(() => {
   border-right: 1px solid var(--border-subtle);
   border-bottom: 2px solid transparent;
   background: transparent;
-  cursor: pointer;
-  opacity: 0.6;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -427,15 +396,6 @@ onBeforeUnmount(() => {
   opacity: 1;
   background: #070a13;
   border-bottom: 2px solid var(--cyan-primary);
-}
-
-.parsons-tab {
-  font-family: var(--font-sans);
-}
-
-.parsons-done {
-  color: #6ee7b7;
-  font-weight: 800;
 }
 
 .icon-file {

@@ -47,21 +47,6 @@ export default {
     answer: 1,
     explain: '接電線的當下不會執行；要等使用者真的點擊（click），瀏覽器才會呼叫這個回呼函式。'
   },
-  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
-  parsons: {
-    prompt: '點擊 #hello-btn 時，把 #message 的文字改成「你好！」。',
-    solution: [
-      [
-        'const btn = document.querySelector("#hello-btn");',
-        'const msg = document.querySelector("#message");'
-      ],
-      'btn.addEventListener("click", () => {',
-      '  msg.textContent = "你好！";',
-      '});'
-    ],
-    distractors: ['const btn = document.querySelector("hello-btn");'],
-    explain: '選擇器裡的 id 前面要加 #。大括號裡的程式不會馬上執行，要等使用者點擊才會跑。'
-  },
   concepts: ['DOM 元素選擇', '事件監聽器 (addEventListener)', 'textContent / style 即時改寫'],
   description: `太空艙的控制「網頁」當機了！上方 2D 視窗就是一整個故障中的儀表板網頁：警報燈狂閃、氣閘門鎖死。2D 儀表板上有 4 個元素：解除警報按鈕、氣閘按鈕、狀態燈、氣閘艙門，請照著任務需求將程式接起來。`,
   targetRequirements: [

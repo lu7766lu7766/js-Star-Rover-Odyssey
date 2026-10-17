@@ -26,20 +26,6 @@ export default {
     answer: 1,
     explain: '加了引號就變成文字（字串）。布林值 true / false 不能加引號。'
   },
-  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
-  parsons: {
-    prompt: '宣告船名（字串）、燃料 75（數字）、準備好了（布林 true），最後把三個值印出來。',
-    solution: [
-      [
-        'let shipName = "星塵號";',
-        'let fuel = 75;',
-        'let isReady = true;'
-      ],
-      'console.log(shipName, fuel, isReady);'
-    ],
-    distractors: ['let isReady = "true";'],
-    explain: '三個 let 誰先誰後都可以，但一定要在 console.log 之前宣告。"true" 加了引號就變成字串，不是布林值。'
-  },
   concepts: ['變數宣告 (let)', '字串 (String)', '數值 (Number)', '布林值 (Boolean)'],
   description: `歡迎來到奧德賽基地！全新出廠的探測船目前靜止在整備台，系統記憶體處於未配置狀態。請為探測船宣告並初始化 3 個核心狀態變數：設定探測船代號 (字串 String)、調整主系統輸出功率 (數值 Number) 並啟動量子防護力場 (布林值 Boolean)，完成全艦開機通電自檢！`,
   targetRequirements: [

@@ -22,21 +22,9 @@ export const DEFAULT_SAVE_DATA = {
   errorDex: {},
   predictionStats: { total: 0, correct: 0 },
   predictEveryRun: false,
-  parsonsDone: {},
   parkourCourse: [],
   timestamp: Date.now()
 };
-
-/** 暖身完成紀錄：{ 關卡 id: true }，只保留合法關卡 */
-function sanitizeLevelFlags(raw) {
-  const out = {};
-  if (!raw || typeof raw !== 'object') return out;
-  for (const [key, val] of Object.entries(raw)) {
-    const id = Number(key);
-    if (isValidLevelId(id) && val === true) out[id] = true;
-  }
-  return out;
-}
 
 /** 預測統計：{ total, correct }，correct 不可大於 total */
 function sanitizePredictionStats(raw) {
@@ -117,7 +105,6 @@ export function validateSaveData(data) {
       errorDex: sanitizeErrorDex(data.errorDex),
       predictionStats: sanitizePredictionStats(data.predictionStats),
       predictEveryRun: data.predictEveryRun === true,
-      parsonsDone: sanitizeLevelFlags(data.parsonsDone),
       parkourCourse: isValidCustomMiddle(data.parkourCourse) ? [...data.parkourCourse] : [],
       timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now()
     }

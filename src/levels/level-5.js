@@ -77,21 +77,6 @@ export default {
     answer: 0,
     explain: '用「物件.屬性」讀出物件裡的值：scanParams.range 會得到 18。'
   },
-  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
-  parsons: {
-    prompt: '做一個燈具物件（顏色、亮度），再寫一個函式讀出它的顏色並印出來。',
-    solution: [
-      'const lamp = {',
-      ['  color: "blue",', '  brightness: 80,'],
-      '};',
-      'function turnOn(device) {',
-      '  return device.color + " 燈亮了";',
-      '}',
-      'console.log(turnOn(lamp));'
-    ],
-    distractors: ['console.log(turnOn(color));'],
-    explain: '物件的屬性順序不限。呼叫函式時傳進去的是整個物件 lamp，函式裡再用 device.color 取出顏色。'
-  },
   concepts: ['函式定義與呼叫 (Function Call)', '物件作為參數 (Object Argument)', '回傳值 (Return Value)'],
   description: `探測船進入未探明的迷霧星區，量子掃描雷達已裝配完成。雷達提供三個函式（方法）：廣域掃描 activateScan、集束掃描 focusScan、短促回波 pingEcho。本次任務是全空域普查——所有隱藏天體座標都要解密（最遠天體在 18 單位，需用 "HIGH" 解析度才能解析深空頻譜）。請選對函式，並配好傳入的參數物件 scanParams（範圍 range、解析度 mode），一發完成普查！方法卡上的「回傳」那一行即為成功普查的回傳字串，請整行照抄。填寫時全部填英文：字串加引號，數字不加引號，填中文一定失敗。`,
   targetRequirements: [

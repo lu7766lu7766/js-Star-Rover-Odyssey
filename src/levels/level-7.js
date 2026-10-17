@@ -38,20 +38,6 @@ export default {
     answer: 1,
     explain: '陣列的索引從 0 開始：drones[0] 是游隼號，drones[1] 是夜梟號。'
   },
-  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
-  parsons: {
-    prompt: '走訪每一個分數，60 分以上就印出「及格」。',
-    solution: [
-      'const scores = [55, 82, 90];',
-      'scores.forEach((score) => {',
-      '  if (score >= 60) {',
-      '    console.log(score + " 及格");',
-      '  }',
-      '});'
-    ],
-    distractors: ['scores.forEach(score) {'],
-    explain: 'forEach 的括號裡要放一個函式 (score) => { ... }，陣列裡的每個值都會輪流放進 score。'
-  },
   concepts: ['陣列 (Array [])', '資料遍歷 (forEach)', '條件篩選 (filter)'],
   description: `巡邏編隊由 4 架不同型號的偵查無人機組成，程式碼中已宣告無人機陣列 (const drones = [...])。請使用 forEach 遍歷陣列中的每架無人機，設定安全電量判斷閾值（< 20%，門檻填純數字，不加引號）：讓低電量無人機優先「返航充電」，高電量無人機出發「執行巡邏」，防止無人機在深空因電力耗盡而墜毀！指令只能填英文："RETURN_BASE"＝返航充電 / "PATROL"＝空域巡邏（字串前後加引號，填中文一定失敗）。`,
   targetRequirements: [
