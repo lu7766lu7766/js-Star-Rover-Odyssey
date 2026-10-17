@@ -13,13 +13,17 @@
       </div>
 
       <div class="header-right">
-        <div class="shortcut-tip">
-          <Terminal :size="12" />
-          <span>⌘↵ 執行指令</span>
+        <div class="shortcut-tip" title="在編輯器裡按這組快捷鍵也能執行">
+          <span>{{ runShortcutLabel }} 執行</span>
         </div>
-        <button class="btn btn-sm btn-reset" @click="$emit('reset')" title="復原至本關預設程式碼">
+        <button
+          class="btn btn-sm btn-reset"
+          :class="{ 'is-confirming': confirmingReset }"
+          @click="handleResetClick"
+          title="把程式碼恢復成本關一開始的樣子（之後可按 Ctrl+Z 復原）"
+        >
           <RotateCcw :size="12" />
-          <span>重設代碼</span>
+          <span>{{ confirmingReset ? '再按一次確定' : '重設' }}</span>
         </button>
       </div>
     </div>
@@ -31,15 +35,17 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import { FileCode, RotateCcw, Terminal } from 'lucide-vue-next';
-import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, keymap } from '@codemirror/view';
+import { FileCode, RotateCcw } from 'lucide-vue-next';
+import { EditorState, Compartment, StateField, StateEffect } from '@codemirror/state';
+import { EditorView, Decoration, WidgetType, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, keymap } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { bracketMatching, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { createLevelCompletions } from './editorConfig.js';
+import { useLevelStore } from '../../stores/levelStore.js';
+import { fixFullWidth } from '../../utils/errorTranslator.js';
 
 const props = defineProps({
   modelValue: {
@@ -52,17 +58,110 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:modelValue', 'change', 'reset']);
+const emit = defineEmits(['update:modelValue', 'change', 'reset', 'run']);
 
+const levelStore = useLevelStore();
 const editorParent = ref(null);
 let view = null;
 const completionCompartment = new Compartment();
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const runShortcutLabel = isMac ? '⌘+Enter' : 'Ctrl+Enter';
+
+// 重設程式碼要按兩次，避免學生誤按把寫好的程式洗掉
+const confirmingReset = ref(false);
+let confirmTimer = null;
+function handleResetClick() {
+  if (!confirmingReset.value) {
+    confirmingReset.value = true;
+    confirmTimer = setTimeout(() => { confirmingReset.value = false; }, 3000);
+    return;
+  }
+  clearTimeout(confirmTimer);
+  confirmingReset.value = false;
+  emit('reset');
+}
+
+// ---- 錯誤行標示：紅底 + 行內白話說明（程式碼一改就自動消失） ----
+const setErrorEffect = StateEffect.define();
+
+class ErrorExplainWidget extends WidgetType {
+  constructor(info) {
+    super();
+    this.info = info;
+  }
+
+  eq(other) {
+    return other.info === this.info;
+  }
+
+  toDOM(editorView) {
+    const box = document.createElement('div');
+    box.className = 'cm-error-explain';
+    const title = document.createElement('div');
+    title.className = 'cm-error-explain-title';
+    title.textContent = `第 ${this.info.line} 行：${this.info.title}`;
+    box.appendChild(title);
+    if (this.info.explain) {
+      const explain = document.createElement('div');
+      explain.className = 'cm-error-explain-text';
+      explain.textContent = this.info.explain;
+      box.appendChild(explain);
+    }
+    if (this.info.fixable) {
+      const btn = document.createElement('button');
+      btn.className = 'cm-error-fix-btn';
+      btn.textContent = '一鍵修正全形符號';
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('click', () => {
+        const doc = editorView.state.doc.toString();
+        editorView.dispatch({ changes: { from: 0, to: doc.length, insert: fixFullWidth(doc) } });
+        editorView.focus();
+      });
+      box.appendChild(btn);
+    }
+    return box;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+const errorLineField = StateField.define({
+  create: () => Decoration.none,
+  update(decos, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setErrorEffect)) {
+        const info = e.value;
+        if (!info || !info.line || info.line > tr.state.doc.lines) return Decoration.none;
+        const line = tr.state.doc.line(info.line);
+        return Decoration.set([
+          Decoration.line({ class: 'cm-error-line' }).range(line.from),
+          Decoration.widget({ widget: new ErrorExplainWidget(info), block: true, side: 1 }).range(line.to)
+        ]);
+      }
+    }
+    // 學生一動手修改，就把舊的錯誤標示收起來
+    return tr.docChanged ? Decoration.none : decos;
+  },
+  provide: (f) => EditorView.decorations.from(f)
+});
+
+function showErrorInEditor(info) {
+  if (!view) return;
+  const effects = [setErrorEffect.of(info)];
+  if (info?.line && info.line <= view.state.doc.lines) {
+    effects.push(EditorView.scrollIntoView(view.state.doc.line(info.line).from, { y: 'center' }));
+  }
+  view.dispatch({ effects });
+}
 
 // Tactical Deep Space Flight Computer CodeMirror Theme
 const customEditorTheme = EditorView.theme({
   '&': {
     height: '100%',
-    fontSize: '13.5px',
+    fontSize: '15px',
     backgroundColor: '#070a13',
     color: '#e2e8f0',
     fontFamily: 'var(--font-mono)'
@@ -93,6 +192,39 @@ const customEditorTheme = EditorView.theme({
     backgroundColor: 'rgba(0, 229, 255, 0.08)',
     color: '#00e5ff',
     fontWeight: '700'
+  },
+  '.cm-error-line': {
+    backgroundColor: 'rgba(251, 191, 36, 0.16)',
+    boxShadow: 'inset 3px 0 0 #fbbf24'
+  },
+  '.cm-error-explain': {
+    margin: '4px 12px 8px 12px',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    background: '#fffbeb',
+    border: '1px solid #fcd34d',
+    color: '#78350f',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '14px',
+    lineHeight: '1.55',
+    whiteSpace: 'normal'
+  },
+  '.cm-error-explain-title': {
+    fontWeight: '700'
+  },
+  '.cm-error-explain-text': {
+    marginTop: '2px'
+  },
+  '.cm-error-fix-btn': {
+    marginTop: '6px',
+    padding: '4px 10px',
+    borderRadius: '6px',
+    border: '1px solid #d97706',
+    background: '#f59e0b',
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: '13px',
+    cursor: 'pointer'
   }
 }, { dark: true });
 
@@ -103,6 +235,8 @@ onMounted(() => {
     doc: props.modelValue,
     extensions: [
       lineNumbers(),
+      EditorView.lineWrapping,
+      errorLineField,
       highlightActiveLineGutter(),
       highlightSpecialChars(),
       history(),
@@ -116,6 +250,7 @@ onMounted(() => {
       customEditorTheme,
       completionCompartment.of(createLevelCompletions(props.levelId)),
       keymap.of([
+        { key: 'Mod-Enter', run: () => { emit('run'); return true; } },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap
@@ -134,6 +269,12 @@ onMounted(() => {
     state,
     parent: editorParent.value
   });
+  showErrorInEditor(levelStore.lastRunResult?.errorInfo || null);
+});
+
+// 執行結果有行號時，把錯誤標在那一行
+watch(() => levelStore.lastRunResult, (res) => {
+  showErrorInEditor(res && !res.pass ? res.errorInfo || null : null);
 });
 
 // Update editor text when modelValue changes externally
@@ -155,6 +296,7 @@ watch(() => props.levelId, (newLevelId) => {
 });
 
 onBeforeUnmount(() => {
+  clearTimeout(confirmTimer);
   if (view) {
     view.destroy();
     view = null;
@@ -241,6 +383,12 @@ onBeforeUnmount(() => {
 .btn-reset:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
+}
+
+.btn-reset.is-confirming {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+  color: #fde68a;
 }
 
 .editor-viewport {

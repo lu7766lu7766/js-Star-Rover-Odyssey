@@ -3,7 +3,7 @@
     <div class="deck-header">
       <div class="deck-title-group">
         <Sliders :size="18" class="text-brand" />
-        <h3 class="deck-title">飛行變數與推力參數調節 · Flight Parameters</h3>
+        <h3 class="deck-title">能源補給：用變數做運算</h3>
       </div>
       <div class="deck-actions">
         <button class="btn btn-secondary btn-sm" @click="handleRestore" title="還原場景與參數至最初狀態">
@@ -24,7 +24,7 @@
           <span class="badge badge-info">變數 + * = 3星</span>
         </div>
         <div class="code-editor-wrap">
-          <CodeEditor v-model="studentCode" :level-id="2" @reset="resetCode" />
+          <CodeEditor v-model="studentCode" :level-id="2" @reset="resetCode" @run="runCodeExecution" />
         </div>
         <div class="code-mode-actions">
           <button
@@ -36,23 +36,14 @@
             <span>{{ levelStore.isExecuting ? '推進點火中...' : '執行 JS 程式碼' }}</span>
           </button>
         </div>
-        <div class="code-mode-logs" v-if="levelStore.executionLogs.length > 0">
-          <div
-            v-for="log in levelStore.executionLogs.slice(-4)"
-            :key="log.id"
-            class="mini-log"
-            :class="'mini-log-' + log.type"
-          >
-            {{ log.message }}
-          </div>
-        </div>
+        <RunFeedback />
       </div>
     </div>
 
     <!-- Execute Bar -->
     <div class="deck-footer">
       <div class="footer-hint">
-        寫碼模式：在上方編輯器按「執行 JS 程式碼」（次數 × 速度 = 24）
+        位移 = 次數 × 速度，目標剛好是 24
       </div>
     </div>
   </div>
@@ -65,6 +56,7 @@ import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { LEVEL_2_STARTER_CODE } from '../../levels/level-2.js';
 import CodeEditor from '../editor/CodeEditor.vue';
+import RunFeedback from './RunFeedback.vue';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
@@ -256,7 +248,7 @@ function resetCode() {
 }
 
 .code-editor-wrap {
-  height: 260px;
+  height: clamp(280px, 46vh, 560px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -269,34 +261,9 @@ function resetCode() {
   gap: 0.5rem;
 }
 
-.code-mode-logs {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
 
-.mini-log {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--bg-panel-hover);
-  border: 1px solid var(--border-subtle);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
-.mini-log-error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
 
-.mini-log-success {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #15803d;
-}
 
 .calc-locked {
   padding: 0.8rem;

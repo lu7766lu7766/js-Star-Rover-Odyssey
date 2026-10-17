@@ -4,82 +4,81 @@
     <div class="hub-header">
       <div class="hub-title-row">
         <Target :size="18" class="text-brand" />
-        <h2 class="hub-title">任務簡報 · Mission Brief</h2>
+        <h2 class="hub-title">任務簡報</h2>
       </div>
       <div class="header-actions">
-        <button class="btn btn-ghost btn-xs hint-nav-btn" @click="openHints" title="查看任務導引提示">
+        <button class="btn btn-ghost btn-xs hint-nav-btn" @click="openHints" title="查看任務提示">
           <Lightbulb :size="14" class="text-warning" />
-          <span>提示</span>
+          <span>提示 {{ levelStore.unlockedHintCount }}/{{ level.hints?.length || 0 }}</span>
         </button>
-        <span class="badge badge-blue">LEVEL {{ formatLevelNumber(level.id) }}</span>
+        <span class="badge badge-blue">第 {{ getLevelNumber(level.id) }} 站</span>
       </div>
     </div>
 
     <!-- Scrollable Content -->
     <div class="hub-content">
-      <!-- Mission Objective Box -->
       <section class="info-card card">
         <div class="card-top-title">
           <h3 class="card-title">{{ level.title }}</h3>
           <span class="card-subtitle">{{ level.subtitle }}</span>
         </div>
 
-        <!-- Concept Badges -->
-        <div v-if="level.concepts" class="concept-tags-row">
-          <span v-for="tag in level.concepts" :key="tag" class="concept-pill">
-            {{ tag }}
-          </span>
-        </div>
+        <!-- 一句話任務 -->
+        <p v-if="level.goal" class="mission-goal">🎯 {{ level.goal }}</p>
 
-        <p class="mission-story">{{ level.description }}</p>
-
+        <!-- 通關要求：逐項打勾，沒過時標出卡在哪一項 -->
         <div class="requirements-box">
-          <span class="req-title">通關要求 (Requirements)：</span>
+          <span class="req-title">通關要求</span>
           <ul class="req-list">
-            <li v-for="(req, idx) in level.targetRequirements" :key="idx" class="req-item">
-              <CheckCircle2 v-if="isCompleted" :size="15" class="text-success req-icon" />
-              <Circle v-else :size="15" class="text-muted req-icon" />
-              <span>{{ req }}</span>
+            <li
+              v-for="(req, idx) in level.targetRequirements"
+              :key="idx"
+              class="req-item"
+              :class="`req-${reqState(idx)}`"
+            >
+              <CheckCircle2 v-if="reqState(idx) === 'done'" :size="16" class="text-success req-icon" />
+              <AlertCircle v-else-if="reqState(idx) === 'stuck'" :size="16" class="req-icon icon-stuck" />
+              <Circle v-else :size="16" class="text-muted req-icon" />
+              <span>
+                {{ req }}
+                <em v-if="reqState(idx) === 'stuck'" class="stuck-tag">← 卡在這裡</em>
+              </span>
             </li>
           </ul>
         </div>
+
+        <!-- 任務故事（預設收合，避免一進來就是一大段文字） -->
+        <details class="story-details">
+          <summary>看任務故事與詳細說明</summary>
+          <div v-if="level.concepts" class="concept-tags-row">
+            <span v-for="tag in level.concepts" :key="tag" class="concept-pill">
+              {{ tag }}
+            </span>
+          </div>
+          <p class="mission-story">{{ level.description }}</p>
+        </details>
       </section>
 
-      <!-- Execution Status & Diagnostic Feedback -->
-      <section v-if="lastRunResult" class="feedback-card card" :class="lastRunResult.pass ? 'feedback-pass' : 'feedback-fail'">
-        <div class="feedback-header">
-          <CheckCircle2 v-if="lastRunResult.pass" :size="18" class="text-success" />
-          <AlertCircle v-else :size="18" class="text-danger" />
-          <strong class="feedback-title">{{ lastRunResult.pass ? '通關遙測驗證通過！' : '遙測自檢未通過 (需調整參數)' }}</strong>
-        </div>
-        <p class="feedback-body">
-          {{ lastRunResult.pass ? lastRunResult.feedback : lastRunResult.error }}
-        </p>
-        <div v-if="!lastRunResult.pass && failureHint" class="feedback-action-hint">
-          <Lightbulb :size="14" class="text-brand" />
-          <span>{{ failureHint }}</span>
-        </div>
-      </section>
-
-      <!-- Core Concept Card (collapsed to reduce scroll) -->
+      <!-- Core Concept Card -->
       <section class="concept-card card collapsible">
         <div class="concept-header collapsible-header" @click="toggleSection('concept')">
           <BookOpen :size="16" class="text-purple" />
-          <h4 class="concept-name">{{ level.conceptTitle }}</h4>
+          <h4 class="concept-name">觀念小教室：{{ level.conceptTitle }}</h4>
           <span class="collapse-icon">
             <ChevronUp v-if="openSections.concept" :size="15" class="text-muted" />
             <ChevronDown v-else :size="15" class="text-muted" />
           </span>
         </div>
-        <p v-show="openSections.concept" class="concept-text">{{ level.conceptExplanation }}</p>
+        <p v-show="openSections.concept" class="concept-text">{{ conceptPlainText }}</p>
       </section>
-
     </div>
 
     <!-- Socratic Hint Modal Component -->
     <HintModal
       :is-open="levelStore.isHintModalOpen"
       :hints="level.hints || []"
+      :unlocked-count="levelStore.unlockedHintCount"
+      :fail-count="levelStore.failCount"
       @close="levelStore.toggleHintModal(false)"
     />
   </aside>
@@ -93,7 +92,7 @@ import {
 } from 'lucide-vue-next';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
-import { formatLevelNumber } from '../../levels/index.js';
+import { getLevelNumber } from '../../levels/index.js';
 import HintModal from './HintModal.vue';
 
 const levelStore = useLevelStore();
@@ -103,25 +102,28 @@ const level = computed(() => levelStore.currentLevel);
 const isCompleted = computed(() => progressStore.isLevelCompleted(level.value.id));
 const lastRunResult = computed(() => levelStore.lastRunResult);
 
-const failureHint = computed(() => {
-  if (!lastRunResult.value || lastRunResult.value.pass) return '';
-  const err = lastRunResult.value.error || '';
-  if (err.includes('未命名')) return 'JavaScript 變數需賦予字串，請在左下輸入名稱或點選快速代號。';
-  if (err.includes('能源不足') || err.includes('功率')) return '系統最低需 80% 功率，請拉動功率滑桿至 80%~100% 範圍。';
-  if (err.includes('防護力場') || err.includes('防護罩')) return '請將 shieldActive 設為 true 以啟動防護力場。';
-  if (err.includes('推力不足') || err.includes('尚未抵達補給站')) return '請調整推進次數與速度，讓 總位移 (次數 × 速度) 剛好等於 24 單位。';
-  if (err.includes('超速') || err.includes('超出')) return '速度或位移過大，請將著陸速度控制在 3 以內，並讓位移剛好為 24。';
-  if (err.includes('燃料不足') || err.includes('燃料耗盡')) return '請調高初始燃料或減少推進次數，確保剩餘燃料大於 0。';
-  if (err.includes('採集數量不足')) return '請調整 for 迴圈次數至 5 次以採集所有水晶。';
-  if (err.includes('模組型號')) return '請更換為高階模組並調用 scanArea() 方法。';
-  return '請調整左側控制項參數後再次點擊測試。';
-});
+// 觀念說明裡的 **粗體** 記號直接顯示會很怪，先拿掉
+const conceptPlainText = computed(() => (level.value.conceptExplanation || '').replace(/\*\*/g, ''));
+
+/** 每一項要求的狀態：done 已達成 / stuck 卡在這裡 / todo 尚未檢查 */
+function reqState(idx) {
+  const res = lastRunResult.value;
+  if (res?.pass) return 'done';
+  const stuckAt = res?.errorInfo?.reqIndex;
+  if (typeof stuckAt === 'number') {
+    if (idx < stuckAt) return 'done';
+    if (idx === stuckAt) return 'stuck';
+    return 'todo';
+  }
+  // 這次執行沒過、又看不出卡在哪一項（例如語法錯誤）→ 全部視為待檢查，避免沿用舊的通關勾勾
+  if (res && !res.pass) return 'todo';
+  return isCompleted.value ? 'done' : 'todo';
+}
 
 function openHints() {
   levelStore.toggleHintModal(true);
 }
 
-// 概念卡收合狀態（監視器與語法對照已刪除，僅保留概念卡）
 const openSections = ref({ concept: false });
 function toggleSection(key) {
   openSections.value[key] = !openSections.value[key];
@@ -273,9 +275,11 @@ function toggleSection(key) {
   display: flex;
   align-items: flex-start;
   gap: 0.45rem;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   color: #334155;
-  line-height: 1.4;
+  line-height: 1.5;
+  padding: 0.2rem 0.3rem;
+  transition: background var(--transition-fast);
 }
 
 .req-icon {
@@ -284,56 +288,55 @@ function toggleSection(key) {
 }
 
 /* Feedback Card */
-.feedback-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.85rem 1rem;
-}
-
-.feedback-pass {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  color: #065f46;
-}
-
-.feedback-fail {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-}
-
-.feedback-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.feedback-title {
-  font-size: 0.9rem;
-}
-
-.feedback-body {
-  font-size: 0.84rem;
-  line-height: 1.5;
+.mission-goal {
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--text-primary);
+  background: var(--primary-blue-light);
+  border: 1px solid var(--border-accent-light);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
   margin: 0;
 }
 
-.feedback-action-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: #ffffff;
-  padding: 0.45rem 0.75rem;
+.req-stuck {
+  background: var(--warning-light);
   border-radius: var(--radius-sm);
-  border: 1px solid #fecaca;
-  font-size: 0.8rem;
-  color: #991b1b;
-  font-weight: 500;
-  margin-top: 0.25rem;
+  color: #78350f;
 }
 
-/* Concept Card */
+.icon-stuck {
+  color: var(--warning-dark);
+}
+
+.stuck-tag {
+  font-style: normal;
+  font-weight: 800;
+  color: var(--warning-dark);
+  white-space: nowrap;
+}
+
+.req-done {
+  color: var(--text-secondary);
+}
+
+.story-details summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary-blue);
+  padding: 0.2rem 0;
+}
+
+.story-details[open] summary {
+  margin-bottom: 0.45rem;
+}
+
+.story-details .mission-story {
+  margin-top: 0.45rem;
+}
+
 .concept-card {
   background: #faf5ff;
   border: 1px solid #e9d5ff;

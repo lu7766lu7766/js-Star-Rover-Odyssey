@@ -15,14 +15,24 @@ export default {
   id: 1,
   title: '探測船通電自檢',
   subtitle: '變數宣告與資料型態',
+  // 一句話任務目標（任務欄最上方）
+  goal: '幫探測船宣告 3 個變數：名字、功率、防護罩開關',
   conceptTitle: '變數是儲存資料的容器：let 與三大基礎型態',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: '這樣寫的話，shieldActive 是什麼型態？',
+    code: 'let shieldActive = "true";',
+    options: ['布林 Boolean', '字串 String', '數字 Number'],
+    answer: 1,
+    explain: '加了引號就變成文字（字串）。布林值 true / false 不能加引號。'
+  },
   concepts: ['變數宣告 (let)', '字串 (String)', '數值 (Number)', '布林值 (Boolean)'],
   description: `歡迎來到奧德賽基地！全新出廠的探測船目前靜止在整備台，系統記憶體處於未配置狀態。請為探測船宣告並初始化 3 個核心狀態變數：設定探測船代號 (字串 String)、調整主系統輸出功率 (數值 Number) 並啟動量子防護力場 (布林值 Boolean)，完成全艦開機通電自檢！`,
   targetRequirements: [
     '宣告 roverName (字串)：為探測船命名 (不可留空或為預設值，字串前後要加引號)',
     '宣告 powerLevel (數值)：調校系統輸出功率至安全標準 (80% ~ 100%，直接寫數字，不加引號)',
     '宣告 shieldActive (布林值)：啟動防護力場開關 (必須為 true，不加引號，加引號會變成字串)',
-    '確認三大變數型態各不同且寫法正確，點擊「執行通電自檢」喚醒探測船'
+    '確認三大變數型態各不同且寫法正確，點擊「執行 JS 程式碼」喚醒探測船'
   ],
   controlType: 'variable-declaration',
   initialVariables: {
@@ -53,6 +63,7 @@ rover.systemCheck({ roverName, powerLevel, shieldActive });`,
       if (setups.length === 0) {
         return {
           pass: false,
+          reqIndex: 3,
           error: '沒有偵測到 rover.setup(...)！請宣告三個變數並呼叫 rover.setup(roverName, powerLevel, shieldActive)。'
         };
       }
@@ -63,6 +74,7 @@ rover.systemCheck({ roverName, powerLevel, shieldActive });`,
       if (!trimmedName || trimmedName === '未命名' || trimmedName === 'UNKNOWN') {
         return {
           pass: false,
+          reqIndex: 0,
           error: '探測船未命名！roverName 必須是帶名字的字串（例如 "奧德賽號"），不能空字串。',
           details: { field: 'roverName', current: trimmedName }
         };
@@ -70,6 +82,7 @@ rover.systemCheck({ roverName, powerLevel, shieldActive });`,
       if (typeof roverName !== 'string') {
         return {
           pass: false,
+          reqIndex: 0,
           error: `型態錯誤！roverName 必須是字串 String（記得加引號），你傳入的是 ${typeof roverName}。`,
           details: { field: 'roverName', current: roverName }
         };
@@ -79,6 +92,7 @@ rover.systemCheck({ roverName, powerLevel, shieldActive });`,
       if (typeof powerLevel === 'boolean' || isNaN(numPower) || numPower < 80) {
         return {
           pass: false,
+          reqIndex: 1,
           error: `能源不足！目前 powerLevel 為 ${String(powerLevel)}，系統最低啟動門檻為 80%。請傳入 80~100 的數值！`,
           details: { field: 'powerLevel', current: powerLevel }
         };
@@ -86,6 +100,7 @@ rover.systemCheck({ roverName, powerLevel, shieldActive });`,
       if (numPower > 100) {
         return {
           pass: false,
+          reqIndex: 1,
           error: `電壓超載！目前 powerLevel 為 ${numPower}%，超過反應爐額定上限 (100%)。`,
           details: { field: 'powerLevel', current: numPower }
         };
@@ -94,6 +109,7 @@ rover.systemCheck({ roverName, powerLevel, shieldActive });`,
       if (shieldActive !== true) {
         return {
           pass: false,
+          reqIndex: 2,
           error: `防護力場未啟動！shieldActive 必須是布林值 true（不加引號），你傳入的是 ${JSON.stringify(shieldActive)}。`,
           details: { field: 'shieldActive', current: shieldActive }
         };

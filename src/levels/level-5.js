@@ -66,7 +66,17 @@ export default {
   id: 5,
   title: '模組裝載',
   subtitle: '函式呼叫與物件參數',
+  // 一句話任務目標（任務欄最上方）
+  goal: '組好掃描模組物件：選對函式、設定參數，完成全空域普查',
   conceptTitle: '函式是動詞，物件是受詞：f(x)',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: '要取出 range 的值，該怎麼寫？',
+    code: 'const scanParams = { range: 18, mode: "HIGH" };',
+    options: ['scanParams.range', 'scanParams(range)', 'range.scanParams'],
+    answer: 0,
+    explain: '用「物件.屬性」讀出物件裡的值：scanParams.range 會得到 18。'
+  },
   concepts: ['函式定義與呼叫 (Function Call)', '物件作為參數 (Object Argument)', '回傳值 (Return Value)'],
   description: `探測船進入未探明的迷霧星區，量子掃描雷達已裝配完成。雷達提供三個函式（方法）：廣域掃描 activateScan、集束掃描 focusScan、短促回波 pingEcho。本次任務是全空域普查——所有隱藏天體座標都要解密（最遠天體在 18 單位，需用 "HIGH" 解析度才能解析深空頻譜）。請選對函式，並配好傳入的參數物件 scanParams（範圍 range、解析度 mode），一發完成普查！方法卡上的「回傳」那一行即為成功普查的回傳字串，請整行照抄。填寫時全部填英文：字串加引號，數字不加引號，填中文一定失敗。`,
   targetRequirements: [
@@ -108,6 +118,7 @@ pingEcho(scanParams);       // 回傳 "PARTIAL_NEAR"`,
       if (calls.length === 0) {
         return {
           pass: false,
+          reqIndex: 0,
           error: '沒有偵測到 rover.installModule(...)！請定義 scanModule 物件並呼叫 rover.installModule(scanModule)。'
         };
       }
@@ -117,12 +128,14 @@ pingEcho(scanParams);       // 回傳 "PARTIAL_NEAR"`,
       if (!mod.hasActivate) {
         return {
           pass: false,
+          reqIndex: 3,
           error: 'scanModule 缺少 activate 函式！模組必須有 activate 方法（function），回傳普查結果字串。'
         };
       }
       if (mod.activateError) {
         return {
           pass: false,
+          reqIndex: 3,
           error: `activate() 執行出錯：${mod.activateError}。請檢查函式內容。`
         };
       }
@@ -133,6 +146,7 @@ pingEcho(scanParams);       // 回傳 "PARTIAL_NEAR"`,
           : 'pingEcho 是短促回波，只能看到近距離殘影，遠端天體完全收不到訊號。';
         return {
           pass: false,
+          reqIndex: 0,
           error: `方法選型錯誤！你裝載的是【${got}】。${hint}請改用 activateScan。`,
           details: { methodId: mod.name, expected: 'activateScan' }
         };
@@ -141,18 +155,21 @@ pingEcho(scanParams);       // 回傳 "PARTIAL_NEAR"`,
       if (isNaN(numRange) || numRange < 18) {
         return {
           pass: false,
+          reqIndex: 1,
           error: `參數不足！目前 range 為 ${mod.range} 單位，最遠的隱藏天體位於 18 單位處，請將半徑調至 18 或以上！`
         };
       }
       if (mod.mode !== 'HIGH') {
         return {
           pass: false,
+          reqIndex: 2,
           error: `參數不足！目前 mode 為 ${JSON.stringify(mod.mode)}，請切換為 "HIGH" 才能解析星圖深空頻譜。`
         };
       }
       if (mod.activateResult !== 'SCAN_COMPLETE') {
         return {
           pass: false,
+          reqIndex: 3,
           error: `回傳值錯誤！activate() 回傳了 ${JSON.stringify(mod.activateResult)}，全空域普查成功必須回傳 "SCAN_COMPLETE"。`
         };
       }

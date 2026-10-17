@@ -27,7 +27,17 @@ export default {
   id: 7,
   title: '無人機編隊',
   subtitle: '陣列與批次處理',
+  // 一句話任務目標（任務欄最上方）
+  goal: '用 forEach 走訪每架無人機：低電量的返航，其他的去巡邏',
   conceptTitle: '批次管理成批資料：陣列與迭代',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: 'drones[1] 是哪一架？',
+    code: 'const drones = ["游隼號", "夜梟號", "海鵰號"];',
+    options: ['游隼號', '夜梟號', '海鵰號'],
+    answer: 1,
+    explain: '陣列的索引從 0 開始：drones[0] 是游隼號，drones[1] 是夜梟號。'
+  },
   concepts: ['陣列 (Array [])', '資料遍歷 (forEach)', '條件篩選 (filter)'],
   description: `巡邏編隊由 4 架不同型號的偵查無人機組成，程式碼中已宣告無人機陣列 (const drones = [...])。請使用 forEach 遍歷陣列中的每架無人機，設定安全電量判斷閾值（< 20%，門檻填純數字，不加引號）：讓低電量無人機優先「返航充電」，高電量無人機出發「執行巡邏」，防止無人機在深空因電力耗盡而墜毀！指令只能填英文："RETURN_BASE"＝返航充電 / "PATROL"＝空域巡邏（字串前後加引號，填中文一定失敗）。`,
   targetRequirements: [
@@ -78,6 +88,7 @@ droneFleet.deploy(drones);`,
       if (calls.length === 0) {
         return {
           pass: false,
+          reqIndex: 4,
           error: '沒有偵測到 droneFleet.deploy(...)！請走訪 drones 陣列、逐架指派 order 後呼叫 droneFleet.deploy(drones)。'
         };
       }
@@ -86,6 +97,7 @@ droneFleet.deploy(drones);`,
       if (!Array.isArray(list) || list.length === 0) {
         return {
           pass: false,
+          reqIndex: 4,
           error: 'deploy 收到的是空陣列！請把指派好 order 的無人機陣列傳入 droneFleet.deploy(...)。'
         };
       }

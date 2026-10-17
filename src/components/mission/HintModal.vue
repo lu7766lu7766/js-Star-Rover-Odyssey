@@ -8,34 +8,43 @@
             <Lightbulb class="icon-hint" :size="20" />
           </div>
           <div class="title-text">
-            <span class="sub-label">EXPLORATION GUIDE &amp; CONCEPT TIPS</span>
-            <h3 class="main-title">任務探索錦囊與思考引導</h3>
+            <span class="sub-label">先自己想想，卡住了再往下看</span>
+            <h3 class="main-title">任務提示</h3>
           </div>
         </div>
-        <button class="btn-close" @click="$emit('close')" title="關閉手冊">
+        <button class="btn-close" @click="$emit('close')" title="關閉提示">
           <X :size="18" />
         </button>
       </div>
 
       <!-- Modal Body (Hints List) -->
       <div class="modal-body">
-        <div v-for="(hint, idx) in hints" :key="idx" class="hint-card">
+        <div
+          v-for="(hint, idx) in hints"
+          :key="idx"
+          class="hint-card"
+          :class="{ 'hint-locked': idx >= unlockedCount }"
+        >
           <div class="hint-badge">
-            <span class="step-badge-num">STAGE 0{{ idx + 1 }}</span>
-            <span class="step-badge-text">思考提示階段</span>
+            <span class="step-badge-num">提示 {{ idx + 1 }}</span>
+            <span v-if="idx >= unlockedCount" class="step-badge-text">
+              <Lock :size="12" />
+              再試 {{ triesToUnlock(idx) }} 次後解鎖
+            </span>
           </div>
-          <p class="hint-content">{{ hint }}</p>
+          <p v-if="idx < unlockedCount" class="hint-content">{{ stripLabel(hint) }}</p>
+          <p v-else class="hint-content hint-placeholder">先動手試試看：改程式、按執行、看結果。每次嘗試都會讓你更接近答案！</p>
         </div>
 
         <div v-if="hints.length === 0" class="no-hints">
-          <span class="no-hints-text">本關暫無額外特殊提示，請依照左側主控台之目標直接操作！</span>
+          <span class="no-hints-text">這一關沒有額外提示，照著任務簡報的通關要求做就可以了！</span>
         </div>
       </div>
 
       <!-- Modal Footer -->
       <div class="modal-footer">
         <button class="btn btn-primary btn-sm btn-dismiss" @click="$emit('close')">
-          <span>明白指引，返回操作台</span>
+          <span>回去試試看</span>
         </button>
       </div>
     </div>
@@ -43,9 +52,10 @@
 </template>
 
 <script setup>
-import { Lightbulb, X } from 'lucide-vue-next';
+import { Lightbulb, X, Lock } from 'lucide-vue-next';
+import { hintUnlockFails } from '../../stores/levelStore.js';
 
-defineProps({
+const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false
@@ -53,10 +63,28 @@ defineProps({
   hints: {
     type: Array,
     default: () => []
+  },
+  // 已解鎖幾則（未傳入時全部顯示，維持舊行為）
+  unlockedCount: {
+    type: Number,
+    default: Infinity
+  },
+  failCount: {
+    type: Number,
+    default: 0
   }
 });
 
 defineEmits(['close']);
+
+function triesToUnlock(idx) {
+  return Math.max(1, hintUnlockFails(idx) - props.failCount);
+}
+
+// 提示文字開頭的「提示 1【觀念引導】：」已由卡片標題顯示，去掉避免重複
+function stripLabel(hint) {
+  return String(hint).replace(/^提示\s*\d+\s*/, '');
+}
 </script>
 
 <style scoped>
@@ -203,9 +231,22 @@ defineEmits(['close']);
 }
 
 .step-badge-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.72rem;
   font-weight: 600;
   color: #9a3412;
+}
+
+.hint-locked {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.hint-placeholder {
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .hint-content {

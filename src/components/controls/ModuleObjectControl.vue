@@ -3,7 +3,7 @@
     <div class="deck-header">
       <div class="deck-title-group">
         <Cpu :size="18" class="text-brand" />
-        <h3 class="deck-title">函式呼叫與物件參數 · f(x)</h3>
+        <h3 class="deck-title">模組裝載：函式與物件</h3>
       </div>
       <div class="header-actions">
         <button class="btn btn-ghost btn-sm" @click="resetDefaults" title="還原場景與參數至最初狀態">
@@ -24,7 +24,7 @@
           <span class="badge badge-info">物件 + 方法 = 3星</span>
         </div>
         <div class="code-editor-wrap">
-          <CodeEditor v-model="studentCode" :level-id="5" @reset="resetCode" />
+          <CodeEditor v-model="studentCode" :level-id="5" @reset="resetCode" @run="runCodeExecution" />
         </div>
         <div class="code-mode-actions">
           <button
@@ -36,16 +36,7 @@
             <span>{{ levelStore.isExecuting ? '執行中...' : '執行 JS 程式碼' }}</span>
           </button>
         </div>
-        <div class="code-mode-logs" v-if="levelStore.executionLogs.length > 0">
-          <div
-            v-for="log in levelStore.executionLogs.slice(-4)"
-            :key="log.id"
-            class="mini-log"
-            :class="'mini-log-' + log.type"
-          >
-            {{ log.message }}
-          </div>
-        </div>
+        <RunFeedback />
       </div>
 
       <!-- 1. Function reference cards（方法對照表：讀懂三個 f 的差別再選） -->
@@ -73,7 +64,7 @@
     <!-- Execute Bar -->
     <div class="deck-footer">
       <div class="footer-hint">
-        寫碼模式：在上方編輯器按「執行 JS 程式碼」（先選對 f，再配對 x）
+        先選對要呼叫的函式，再把參數物件的屬性填好
       </div>
     </div>
   </div>
@@ -86,6 +77,7 @@ import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { AVAILABLE_METHODS, LEVEL_5_STARTER_CODE } from '../../levels/level-5.js';
 import CodeEditor from '../editor/CodeEditor.vue';
+import RunFeedback from './RunFeedback.vue';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
@@ -259,7 +251,7 @@ function resetCode() {
 }
 
 .code-editor-wrap {
-  height: 260px;
+  height: clamp(280px, 46vh, 560px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -272,32 +264,7 @@ function resetCode() {
   gap: 0.5rem;
 }
 
-.code-mode-logs {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
 
-.mini-log {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--bg-panel-hover);
-  border: 1px solid var(--border-subtle);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
-.mini-log-error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
 
-.mini-log-success {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #15803d;
-}
 </style>

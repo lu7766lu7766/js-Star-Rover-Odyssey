@@ -43,7 +43,19 @@ export default {
   id: 8,
   title: '星際氣象站',
   subtitle: 'API 與 JSON 資料解析',
+  // 一句話任務目標（任務欄最上方）
+  goal: '向氣象 API 取得資料，找出天氣安全的基地派出無人機',
   conceptTitle: '連結世界：透過 API 交換資料與解析 JSON 結構',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: '要取出風速 12，該怎麼寫？',
+    code: `const data = {
+  current: { wind_speed_10m: 12 }
+};`,
+    options: ['data.wind_speed_10m', 'data.current.wind_speed_10m', 'data[current][wind]'],
+    answer: 1,
+    explain: 'JSON 是一層包一層的物件，要沿著路徑用點運算子一層層往下取：data → current → wind_speed_10m。'
+  },
   concepts: ['Web API (fetch)', 'JSON 物件樹與屬性取值', '非同步資料交換 (Async/Await)', '多站點氣候安全決策'],
   description: `高空探測無人機準備升空進行行星高層大氣測繪！然而無人機具備嚴格的航太硬體安全極限（風速 ≤ 25 km/h、降雨 ≤ 20%、氣溫 ≥ 0°C，三個都要過才 launch，否則 abort）。我們需要向「星際氣象 API (Open-Meteo)」請求真實即時大氣 JSON 資料。沙箱已內建 API，直接呼叫不用 import：fetchStation(stationId) 回傳該站氣象 JSON（非同步，前面一定要加 await）；drone.launch(stationId) / drone.abortMission() 發射或中止（launch 要傳跟 fetch 同一站）。fetchStation 回傳的 data 就是下方「API 回傳原始 JSON 物件樹」那一份：最外層有 current 物件（風速、氣溫等數字鍵）和 hourly 物件（降水機率陣列等），鍵名不用背，照著 JSON 樹層級用 data.層級.鍵名寫出，陣列要加 [0]，取出的風速 / 氣溫 / 降水皆為數字（路徑寫法，不是字串，不加引號）。請檢視 API 回傳的樹狀結構，為無人機感測器配置正確的取值路徑，並比對全球 5 大觀測基地（station-tpe / station-tyo / station-lon / station-dxb / station-rkv，先比對 5 站數據再選），找出唯一符合全安全窗口的基地派遣無人機升空！站點 id 為字串（加引號），安全判斷用 wind、rainProb、temp 以 && 串起三合一條件。`,
   targetRequirements: [
@@ -103,6 +115,7 @@ async function evaluateAndLaunchDrone(stationId) {
       if (missingKeys.length > 0) {
         return {
           pass: false,
+          reqIndex: 1,
           failReason: 'DISCONNECT',
           error: `感測器取值路徑沒寫進程式碼！缺了 ${missingKeys.join('、')}。請從 data 用點運算子取出三個數值（例如 data.current.wind_speed_10m），不能跳過解析直接發射！`
         };
@@ -111,6 +124,7 @@ async function evaluateAndLaunchDrone(stationId) {
       if (fetches.length === 0) {
         return {
           pass: false,
+          reqIndex: 0,
           failReason: 'DISCONNECT',
           error: '沒有呼叫 fetchStation！請先 await fetchStation("station-...") 取回氣象 JSON，再解析判斷。'
         };
@@ -125,6 +139,7 @@ async function evaluateAndLaunchDrone(stationId) {
           if (!t.canLaunch) {
             return {
               pass: false,
+              reqIndex: 4,
               failReason: t.failReason,
               error: `【${stationName(lastFetch)}】確實不安全（${t.summary}），你的 abort 正確！但任務是找到安全基地發射——換一站（提示：台北 / 杜拜）再試。`
             };
@@ -132,6 +147,7 @@ async function evaluateAndLaunchDrone(stationId) {
         }
         return {
           pass: false,
+          reqIndex: 4,
           failReason: 'DISCONNECT',
           error: '資料安全卻還沒發射！確認三項全過後，呼叫 drone.launch("station-...") 派遣無人機升空。'
         };
@@ -142,6 +158,7 @@ async function evaluateAndLaunchDrone(stationId) {
       if (!fetches.includes(stationId)) {
         return {
           pass: false,
+          reqIndex: 0,
           failReason: 'DISCONNECT',
           error: `發射了 ${stationId}，但本次根本沒 fetch 它的資料！先 fetchStation("${stationId}") 拿到 JSON 再判斷，不能憑空發射。`
         };
@@ -151,6 +168,7 @@ async function evaluateAndLaunchDrone(stationId) {
       if (!data) {
         return {
           pass: false,
+          reqIndex: 4,
           failReason: 'DISCONNECT',
           error: `未知觀測站 "${stationId}"！可用：station-tpe / station-tyo / station-lon / station-dxb / station-rkv。`
         };
@@ -166,6 +184,7 @@ async function evaluateAndLaunchDrone(stationId) {
             : `【${stationName(stationId)}】氣溫僅 ${t.temp}°C，低於 0°C 防結冰極限！機翼會結霜墜毀。`;
         return {
           pass: false,
+          reqIndex: 4,
           failReason: t.failReason,
           data: { station: stationName(stationId), wind: t.wind, temp: t.temp, precip: t.precip },
           error: `${reasonMsg}請換安全基地（提示：台北 / 杜拜）重跑。`

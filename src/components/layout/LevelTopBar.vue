@@ -20,7 +20,7 @@
             :value="lvl.id"
             :disabled="!progressStore.isLevelUnlocked(lvl.id)"
           >
-            Level {{ getLevelNumber(lvl.id) }}: {{ lvl.title }} {{ progressStore.isLevelCompleted(lvl.id) ? '✓' : (!progressStore.isLevelUnlocked(lvl.id) ? '🔒' : '') }}
+            第 {{ getLevelNumber(lvl.id) }} 站：{{ lvl.title }} {{ levelStatusMark(lvl.id) }}
           </option>
         </select>
         <span class="concept-badge badge badge-blue hide-mobile">{{ currentLevel.subtitle }}</span>
@@ -28,10 +28,20 @@
     </div>
 
     <div class="topbar-right">
+      <!-- 窄螢幕才出現：打開右側任務簡報抽屜 -->
+      <button
+        class="btn btn-sm mission-toggle-btn"
+        :class="levelStore.isMissionDrawerOpen ? 'btn-primary' : 'btn-outline'"
+        @click="levelStore.isMissionDrawerOpen = !levelStore.isMissionDrawerOpen"
+      >
+        <ClipboardList :size="16" />
+        <span>{{ levelStore.isMissionDrawerOpen ? '收起任務' : '任務簡報' }}</span>
+      </button>
+
       <!-- Stepwise Hints -->
       <button class="btn btn-outline btn-sm" @click="levelStore.toggleHintModal" title="分步提示">
         <HelpCircle :size="16" class="text-warning" />
-        <span>任務提示 ({{ currentLevel.hints?.length || 0 }})</span>
+        <span>任務提示 {{ levelStore.unlockedHintCount }}/{{ currentLevel.hints?.length || 0 }}</span>
       </button>
 
       <!-- Sound Toggle -->
@@ -45,7 +55,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { Map, HelpCircle, Volume2, VolumeX } from 'lucide-vue-next';
+import { Map, HelpCircle, Volume2, VolumeX, ClipboardList } from 'lucide-vue-next';
 import { ALL_LEVELS, getLevelNumber } from '../../levels/index.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { useLevelStore } from '../../stores/levelStore.js';
@@ -55,6 +65,13 @@ const progressStore = useProgressStore();
 const levelStore = useLevelStore();
 
 const currentLevel = computed(() => levelStore.currentLevel);
+
+function levelStatusMark(id) {
+  if (!progressStore.isLevelUnlocked(id)) return '🔒';
+  const stars = progressStore.getLevelStars(id);
+  if (stars > 0) return '★'.repeat(stars);
+  return progressStore.isLevelCompleted(id) ? '✓' : '';
+}
 
 function handleLevelChange(val) {
   const id = parseInt(val, 10);
@@ -71,6 +88,16 @@ function toggleSound() {
 </script>
 
 <style scoped>
+.mission-toggle-btn {
+  display: none;
+}
+
+@media (max-width: 1199px) {
+  .mission-toggle-btn {
+    display: inline-flex;
+  }
+}
+
 .level-topbar {
   height: 56px;
   min-height: 56px;

@@ -49,7 +49,19 @@ export default {
   id: 4,
   title: '迷宮巡航與迴圈拼圖',
   subtitle: '迴圈結構與路徑最佳化',
+  // 一句話任務目標（任務欄最上方）
+  goal: '用前進與轉彎指令（善用 for 迴圈）走出迷宮，抵達基地 (4, 4)',
   conceptTitle: '擺脫人工重複：用 for 迴圈精簡路徑',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: '探測船會前進幾格？',
+    code: `for (let i = 0; i < 3; i++) {
+  rover.moveForward();
+}`,
+    options: ['2 格', '3 格', '4 格'],
+    answer: 1,
+    explain: 'i 依序是 0、1、2，共 3 次；i 變成 3 時 i < 3 不成立，迴圈就停了。'
+  },
   concepts: ['for 迴圈', '路徑規劃演算法', '程式碼最佳化 (Optimal Code)'],
   description: `探測船進入了岩石嶙峋的峽谷迷宮！探測船從起點 (1, 0) 朝北出發，前方佈滿能量障礙物，直行將會撞毀。請使用 rover 的「前進、後退、左轉、右轉」指令，繞過障礙物抵達目標基地 (座標 4, 4)。只要能成功抵達即可通關；把重複前進用 for 迴圈包起來，更可以挑戰最精簡的寫法拿 3 星！`,
   targetRequirements: [
@@ -99,6 +111,7 @@ for (let i = 0; i < 2; i++) {
       if (actions.length === 0) {
         return {
           pass: false,
+          reqIndex: 1,
           error: '沒有偵測到任何移動指令！請呼叫 rover.moveForward() / turnRight() / turnLeft()。'
         };
       }
@@ -122,6 +135,7 @@ for (let i = 0; i < 2; i++) {
       if (kind === 'OUT_OF_BOUNDS') {
         return {
           pass: false,
+          reqIndex: 0,
           error: backward
             ? `超出迷宮邊界！探測船在第 ${stepCount} 步後退至 (${nx}, ${ny})，掉出探勘平台邊緣！`
             : `超出迷宮邊界！探測船在第 ${stepCount} 步試圖前進至 (${nx}, ${ny})，掉出探勘平台邊緣！`,
@@ -130,6 +144,7 @@ for (let i = 0; i < 2; i++) {
       }
       return {
         pass: false,
+        reqIndex: 0,
         error: backward
           ? `後退撞擊障礙物！探測船在第 ${stepCount} 步後退撞上了座標 (${nx}, ${ny}) 的岩石！`
           : `撞擊岩石障礙物！探測船在第 ${stepCount} 步撞上了座標 (${nx}, ${ny}) 的能量岩石！請重新規劃路徑。`,
@@ -142,6 +157,7 @@ for (let i = 0; i < 2; i++) {
       const dist = Math.abs(x - map.target.x) + Math.abs(y - map.target.y);
       return {
         pass: false,
+        reqIndex: 1,
         error: `未抵達目的地！探測船目前停在座標 (${x}, ${y})，距離目標基地 (4, 4) 尚差 ${dist} 格。請繼續補上路徑！`,
         details: { currentPos: { x, y }, targetPos: map.target, distanceRemaining: dist }
       };

@@ -11,6 +11,7 @@
 
 import { BENCHMARK_STATION_DATA } from '../services/weatherService.js';
 import { PARKOUR_COURSES, runCourse } from '../game/sim/parkour.js';
+import { stripCommentsAndStrings } from '../utils/codeAnalysis.js';
 
 /** 簡單 API：僅記錄呼叫（命名空間 → { 方法名: 參數個數 }） */
 export const SIMPLE_API_TABLE = Object.freeze({
@@ -181,7 +182,7 @@ export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
  * @param {Record<string, any>} globals 要注入的全域（console / assert / document / 遊戲 API …）
  * @returns {any} 學生程式碼的回傳值（可能是 Promise）
  */
-export function runStudentCode(code, globals) {
+export function runStudentCode(code, globals, { onVariables } = {}) {
   // 若學生程式碼在頂層自行宣告了同名變數（如 const drones = [...]），
   // 該名稱不應作為 Function 參數傳入，否則會觸發 JS SyntaxError: Identifier '...' has already been declared
   const declaredInCode = new Set(
@@ -192,7 +193,70 @@ export function runStudentCode(code, globals) {
   const blocked = BLOCKED_GLOBALS.filter((name) => !(name in globals) && !declaredInCode.has(name));
   const names = [...injected, ...blocked];
   const values = names.map((name) => globals[name]); // blocked 的值為 undefined
+  // 變數盒子：程式跑到最後時，把頂層 let / const / var 的值拍照回傳（加在程式碼後面，不影響行號）
+  let body = code;
+  if (typeof onVariables === 'function') {
+    const decls = findTopLevelDeclarations(code);
+    if (decls.length > 0) {
+      names.push(CAPTURE_FN_NAME);
+      values.push((snapshot) => onVariables(decls.map((d) => ({ ...d, ...describeValue(snapshot[d.name]) }))));
+      const fields = decls.map((d) => `${d.name}: ${d.name}`).join(', ');
+      body = `${code}\n;try { ${CAPTURE_FN_NAME}({ ${fields} }); } catch (__srErr) {}`;
+    }
+  }
   // eslint-disable-next-line no-new-func
-  const executeFn = new Function(...names, `"use strict";\n${code}`);
+  const executeFn = new Function(...names, `"use strict";\n${body}`);
   return executeFn(...values);
+}
+
+/**
+ * new Function 會在學生程式碼前面多出幾行：
+ * `function anonymous(參數\n) {\n` 兩行，加上我們的 `"use strict";` 一行。
+ * 錯誤堆疊裡的行號要扣掉這個數字，才是學生在編輯器看到的行號。
+ */
+export const STUDENT_CODE_LINE_OFFSET = 3;
+
+const CAPTURE_FN_NAME = '__srCaptureVars';
+
+/**
+ * 找出最外層（不在任何 { } 或 ( ) 裡）用 let / const / var 宣告的變數名稱。
+ * @returns {{ name: string, kind: 'let'|'const'|'var' }[]}
+ */
+export function findTopLevelDeclarations(code) {
+  const stripped = stripCommentsAndStrings(code);
+  const found = [];
+  const seen = new Set();
+  let depth = 0;
+  const declRe = /^(let|const|var)\s+([A-Za-z_$][\w$]*)/;
+  for (let i = 0; i < stripped.length; i++) {
+    const c = stripped[i];
+    if (c === '{' || c === '(' || c === '[') depth++;
+    else if (c === '}' || c === ')' || c === ']') depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (i === 0 || /[^\w$.]/.test(stripped[i - 1]))) {
+      const m = stripped.slice(i, i + 80).match(declRe);
+      if (m && !seen.has(m[2]) && m[2] !== CAPTURE_FN_NAME) {
+        seen.add(m[2]);
+        found.push({ name: m[2], kind: m[1] });
+      }
+    }
+  }
+  return found;
+}
+
+/** 把任意值描述成「型態 + 顯示文字」，給變數盒子顯示 */
+export function describeValue(value) {
+  let type = typeof value;
+  if (value === null) type = 'null';
+  else if (Array.isArray(value)) type = 'array';
+  let display;
+  try {
+    if (type === 'string') display = JSON.stringify(value);
+    else if (type === 'function') display = 'ƒ 函式';
+    else if (type === 'object' || type === 'array') display = JSON.stringify(value);
+    else display = String(value);
+  } catch (e) {
+    display = String(value);
+  }
+  if (display && display.length > 60) display = `${display.slice(0, 57)}...`;
+  return { type, display };
 }

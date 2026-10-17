@@ -51,11 +51,11 @@
       <section class="hero-section">
         <div class="hero-badge badge badge-blue">
           <Sparkles :size="14" />
-          <span>遊戲優先 · 零程式門檻 · 視覺化學習</span>
+          <span>零基礎友善 · 寫真的 JavaScript · 即時 3D 回饋</span>
         </div>
         <h2 class="hero-heading">探索 JavaScript 星系的核心奧秘</h2>
         <p class="hero-desc">
-          無需背誦複雜語法，透過操作指令卡、調節飛行參數、搭建條件與迴圈積木，即時驅動 3D 太空探測船，在冒險中自然掌握核心程式思維！
+          從「把空格 ___ 填好」開始，一步步寫出真正的 JavaScript。你寫的每一行程式，都會立刻驅動 3D 太空探測船——寫錯也沒關係，系統會用中文告訴你哪一行、哪裡要改！
         </p>
         
         <div class="hero-actions">
@@ -68,8 +68,14 @@
         <!-- Overall Progress Bar Card -->
         <div class="progress-card card">
           <div class="progress-info">
-            <span class="progress-label">航程總進度</span>
-            <span class="progress-value">{{ progressStore.completedLevels.length }} / {{ ALL_LEVELS.length }} 站點已通關 ({{ progressStore.progressPercentage }}%)</span>
+            <span class="progress-label">
+              航程總進度
+              <span v-if="progressStore.roverName" class="ship-name">🚀 {{ progressStore.roverName }}</span>
+            </span>
+            <span class="progress-value">
+              {{ progressStore.completedLevels.length }} / {{ ALL_LEVELS.length }} 站已通關
+              <span class="star-total">★ {{ progressStore.totalStars }} / {{ progressStore.maxStars }}</span>
+            </span>
           </div>
           <div class="progress-track">
             <div class="progress-bar" :style="{ width: `${progressStore.progressPercentage}%` }"></div>
@@ -80,8 +86,8 @@
       <!-- Level Exploration Map -->
       <section class="map-section">
         <div class="section-title-wrap">
-          <h3 class="section-title">星際航線地圖 (Mission Starmap)</h3>
-          <span class="section-subtitle">點擊已解鎖的站點即可進入關卡</span>
+          <h3 class="section-title">星際航線地圖</h3>
+          <span class="section-subtitle">點擊已解鎖的站點即可進入；每站最多 3 顆星，重玩可以刷新紀錄</span>
         </div>
 
         <div class="level-grid">
@@ -99,9 +105,14 @@
           >
             <!-- Card Header -->
             <div class="level-card-top">
-              <span class="level-number">LEVEL {{ getLevelNumber(level.id) }}</span>
-              <span v-if="progressStore.isLevelCompleted(level.id)" class="badge badge-success">
-                <CheckCircle2 :size="12" /> 已完成
+              <span class="level-number">第 {{ getLevelNumber(level.id) }} 站</span>
+              <span v-if="progressStore.isLevelCompleted(level.id)" class="level-stars" :aria-label="`${progressStore.getLevelStars(level.id)} 顆星`">
+                <Star
+                  v-for="n in 3"
+                  :key="n"
+                  :size="15"
+                  :class="n <= progressStore.getLevelStars(level.id) ? 'star-on' : 'star-off'"
+                />
               </span>
               <span v-else-if="progressStore.isLevelUnlocked(level.id)" class="badge badge-blue">
                 可進行
@@ -115,7 +126,7 @@
             <div class="level-card-body">
               <h4 class="level-title">{{ level.title }}</h4>
               <span class="level-concept">{{ level.subtitle }}</span>
-              <p class="level-desc">{{ level.description.slice(0, 52) }}...</p>
+              <p class="level-desc">{{ level.goal || `${level.description.slice(0, 52)}...` }}</p>
             </div>
 
             <!-- Card Tags -->
@@ -143,6 +154,29 @@
           </div>
         </div>
       </section>
+
+      <!-- 錯誤圖鑑：把犯過的錯收集起來，錯誤也是成就 -->
+      <section class="dex-section">
+        <div class="section-title-wrap">
+          <h3 class="section-title">錯誤圖鑑 {{ collectedDexCount }} / {{ dexEntries.length }}</h3>
+          <span class="section-subtitle">每個工程師都會犯錯。遇到一種新錯誤，就收集一張卡；看懂錯誤訊息，是寫程式最重要的能力之一。</span>
+        </div>
+        <div class="dex-grid">
+          <div
+            v-for="entry in dexEntries"
+            :key="entry.type"
+            class="dex-card"
+            :class="{ 'dex-collected': entry.count > 0 }"
+          >
+            <span class="dex-icon" aria-hidden="true">{{ entry.count > 0 ? entry.icon : '❔' }}</span>
+            <div class="dex-text">
+              <strong>{{ entry.count > 0 ? entry.name : '尚未遇到' }}</strong>
+              <span>{{ entry.count > 0 ? entry.tip : '寫程式時遇到就會收集到這裡' }}</span>
+            </div>
+            <span v-if="entry.count > 0" class="dex-count">×{{ entry.count }}</span>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Help Instructions Modal -->
@@ -158,22 +192,22 @@
           <div class="guide-step">
             <div class="step-num">1</div>
             <div>
-              <strong>觀察任務與環境</strong>
-              <p>進入關卡後，先閱讀任務目標與 3D 世界中的地形、障礙物或指示燈號。</p>
+              <strong>看任務</strong>
+              <p>右邊的任務簡報最上方有一句話任務目標，下面是要達成的通關要求。</p>
             </div>
           </div>
           <div class="guide-step">
             <div class="step-num">2</div>
             <div>
-              <strong>操作指令與參數</strong>
-              <p>使用滑鼠點擊或拖曳指令卡、拖動滑桿數值、調整條件積木，不用寫任何程式碼。</p>
+              <strong>填空寫程式</strong>
+              <p>把程式碼裡的 ___ 換成正確的值或指令。文字要加引號，數字和 true / false 不用。</p>
             </div>
           </div>
           <div class="guide-step">
             <div class="step-num">3</div>
             <div>
-              <strong>點擊執行與觀察</strong>
-              <p>按下「啟動執行」觀察探測船或機器的即時 3D 反應；若失敗隨時可重試修正策略！</p>
+              <strong>執行、觀察、修正</strong>
+              <p>按「執行 JS 程式碼」（或 Ctrl / ⌘ + Enter）看 3D 場景的反應。沒過的話，程式碼裡會用黃色標出要改的那一行；卡住了就打開提示，失敗越多次，解鎖的提示越多。</p>
             </div>
           </div>
         </div>
@@ -204,6 +238,19 @@
           <div v-if="cheatFeedback" class="cheat-feedback" :class="cheatSuccess ? 'text-success' : 'text-danger'">
             {{ cheatFeedback }}
           </div>
+
+          <div class="passcode-verify">
+            <strong class="passcode-title">驗證學生通關碼</strong>
+            <p class="modal-desc">學生通關時會看到一組通關碼（例如 05-3-K7QF），輸入學生的船名與通關碼即可確認。</p>
+            <div class="passcode-inputs">
+              <input v-model="verifyName" type="text" placeholder="船名（第 1 關取的名字）" class="cheat-input" />
+              <input v-model="verifyCode" type="text" placeholder="通關碼" class="cheat-input" @keyup.enter="checkPassCode" />
+              <button class="btn btn-outline btn-sm" @click="checkPassCode">驗證</button>
+            </div>
+            <div v-if="verifyResult" class="cheat-feedback" :class="verifyResult.valid ? 'text-success' : 'text-danger'">
+              {{ verifyResult.valid ? `✅ 正確：第 ${verifyResult.levelNumber} 站 ${'★'.repeat(verifyResult.stars)}` : '❌ 通關碼與船名不符' }}
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline" @click="showCheatModal = false">取消</button>
@@ -218,11 +265,13 @@
 import { ref, computed } from 'vue';
 import {
   Compass, Play, Volume2, VolumeX, Download, Upload, HelpCircle, Key,
-  Sparkles, CheckCircle2, Lock, ArrowRight, X
+  Sparkles, Lock, ArrowRight, X, Star
 } from 'lucide-vue-next';
 import { ALL_LEVELS, getLevelNumber } from '../../levels/index.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { soundManager } from '../../game/core/SoundManager.js';
+import { ERROR_DEX } from '../../utils/errorTranslator.js';
+import { verifyPassCode } from '../../utils/passCode.js';
 
 const progressStore = useProgressStore();
 const showGuide = ref(false);
@@ -230,6 +279,19 @@ const showCheatModal = ref(false);
 const cheatInput = ref('');
 const cheatFeedback = ref('');
 const cheatSuccess = ref(false);
+
+// 錯誤圖鑑（「邏輯小誤差」與「神祕錯誤」也算，鼓勵學生把錯誤當收藏）
+const dexEntries = computed(() =>
+  Object.entries(ERROR_DEX).map(([type, meta]) => ({ type, ...meta, count: progressStore.errorDex[type] || 0 }))
+);
+const collectedDexCount = computed(() => dexEntries.value.filter((e) => e.count > 0).length);
+
+const verifyName = ref('');
+const verifyCode = ref('');
+const verifyResult = ref(null);
+function checkPassCode() {
+  verifyResult.value = verifyPassCode(verifyCode.value, verifyName.value);
+}
 
 const nextPlayableLevel = computed(() => {
   for (const lvl of ALL_LEVELS) {
@@ -279,6 +341,9 @@ async function handleImportFile(event) {
 }
 
 function openCheatModal() {
+  verifyName.value = '';
+  verifyCode.value = '';
+  verifyResult.value = null;
   cheatInput.value = '';
   cheatFeedback.value = '';
   cheatSuccess.value = false;
@@ -466,6 +531,107 @@ function submitCheat() {
 }
 
 /* Map Section */
+.ship-name {
+  margin-left: 0.5rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.star-total {
+  margin-left: 0.6rem;
+  color: var(--warning-dark);
+  font-weight: 800;
+}
+
+.level-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.star-on {
+  color: #f59e0b;
+  fill: #fbbf24;
+}
+
+.star-off {
+  color: #cbd5e1;
+}
+
+.dex-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.dex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.dex-card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-medium);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
+}
+
+.dex-card.dex-collected {
+  border-style: solid;
+  border-color: var(--warning-border);
+  background: #ffffff;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.dex-icon {
+  font-size: 1.6rem;
+}
+
+.dex-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.dex-text strong {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.dex-count {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--warning-dark);
+}
+
+.passcode-verify {
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.passcode-inputs {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.passcode-inputs .cheat-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .map-section {
   display: flex;
   flex-direction: column;

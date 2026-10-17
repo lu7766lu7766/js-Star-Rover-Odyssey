@@ -21,7 +21,19 @@ export default {
   id: 2,
   title: '能源補給站',
   subtitle: '變數與參數',
+  // 一句話任務目標（任務欄最上方）
+  goal: '算出總消耗、剩餘燃料和位移，讓船剛好停在 24 單位外的補給站',
   conceptTitle: '變數保存資料，參數決定行為',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: 'distance 的值是多少？',
+    code: `const count = 8;
+const speed = 3;
+let distance = count * speed;`,
+    options: ['11', '24', '83'],
+    answer: 1,
+    explain: '* 是乘法：8 × 3 = 24。變數可以拿來運算，算出的結果再存進另一個變數。'
+  },
   concepts: ['變數宣告 (let/const)', '函式傳參', '數值運算'],
   description: `探測船需要進行長途軌道轉移以抵達距離 24 單位的懸浮能源站！系統已預先配置好推進參數（初始燃料 300、每次消耗 30、推進次數 8、推力速度 3）。請運用這四個變數名稱進行四則運算，補齊下方「推進計算」中的空格（___）：依序算出推進總消耗 (totalBurn)、剩餘燃料 (remainingFuel) 與推進總位移 (distance)，並呼叫 rover.approachStation({ distance, speed, remainingFuel }) 讓探測船平穩安全著陸！`,
   targetRequirements: [
@@ -70,6 +82,7 @@ rover.approachStation({ distance, speed, remainingFuel });`,
       if (calls.length === 0) {
         return {
           pass: false,
+          reqIndex: 3,
           error: '沒有偵測到 rover.approachStation(...)！請算出 distance / remainingFuel 並呼叫 rover.approachStation({ distance, speed, remainingFuel })。'
         };
       }
@@ -83,30 +96,35 @@ rover.approachStation({ distance, speed, remainingFuel });`,
       if (!Number.isFinite(totalDistance) || !Number.isFinite(speed) || !Number.isFinite(remainingFuel)) {
         return {
           pass: false,
+          reqIndex: 3,
           error: `參數缺失或不是數字！請傳入 { distance, speed, remainingFuel } 三個數值（收到 ${JSON.stringify(plan)}）。`
         };
       }
       if (remainingFuel < 0) {
         return {
           pass: false,
+          reqIndex: 1,
           error: `燃料耗盡！剩餘燃料為 ${remainingFuel} 單位（總消耗超過初始燃料），推進器在半空中熄火！`
         };
       }
       if (totalDistance < targetDistance) {
         return {
           pass: false,
+          reqIndex: 2,
           error: `推力不足！目前總位移僅 ${totalDistance} 單位，尚未到達距離 ${targetDistance} 的補給平台。`
         };
       }
       if (totalDistance > targetDistance) {
         return {
           pass: false,
+          reqIndex: 2,
           error: `推力過多！總位移 ${totalDistance} 單位衝過了補給平台 (${targetDistance} 單位)！`
         };
       }
       if (speed > 3) {
         return {
           pass: false,
+          reqIndex: 2,
           error: `著陸速度過猛！目前速度為 ${speed}（安全上限為 3），探測船劇烈撞擊停機坪！請降低速度並增加次數。`
         };
       }

@@ -67,6 +67,7 @@ export class SandboxRuntime {
             success: true,
             logs: payload.logs,
             apiCalls: payload.apiCalls,
+            variables: payload.variables || [],
             domState: payload.domState,
             result: payload.result
           });
@@ -80,6 +81,7 @@ export class SandboxRuntime {
           callbacks.resolve({
             success: false,
             error: payload.error,
+            name: payload.name,
             stack: payload.stack,
             logs: payload.logs,
             apiCalls: payload.apiCalls
@@ -227,7 +229,7 @@ export class SandboxRuntime {
   async runDomLevel(code, { onLog, onApiCall } = {}) {
     const first = await this.execute({ code, levelId: 6, onLog, onApiCall });
     if (!first.success) {
-      return { success: false, error: first.error, stack: first.stack, logs: first.logs };
+      return { success: false, error: first.error, name: first.name, stack: first.stack, logs: first.logs };
     }
     await this.triggerEventAndWait('disarm-btn', 'click');
     const afterDisarm = await this.getSnapshot();
@@ -237,7 +239,7 @@ export class SandboxRuntime {
     // 錯誤順序：全新狀態下警報未解除就開門，門必須保持關閉
     const second = await this.execute({ code, levelId: 6 });
     if (!second.success) {
-      return { success: false, error: second.error, stack: second.stack, logs: first.logs };
+      return { success: false, error: second.error, name: second.name, stack: second.stack, logs: first.logs };
     }
     await this.triggerEventAndWait('airlock-btn', 'click');
     const afterWrongOrder = await this.getSnapshot();
@@ -246,6 +248,7 @@ export class SandboxRuntime {
       success: true,
       apiCalls: first.apiCalls || [],
       logs: first.logs || [],
+      variables: first.variables || [],
       wiring: first.domState || {},
       afterDisarm,
       afterCorrect,

@@ -32,7 +32,17 @@ export default {
   id: 9,
   title: '太空站跑酷',
   subtitle: '條件判斷實戰 if / else if',
+  // 一句話任務目標（任務欄最上方）
+  goal: '寫一套通用規則：看前方地形，決定要跑、跳還是滑',
   conceptTitle: '讓程式即時做決策：看見前方地形，選擇正確動作',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: '這個條件什麼時候會成立？',
+    code: `ahead === 'gap' || ahead === 'low'`,
+    options: ['ahead 是 gap 或 low 其中一個時', 'ahead 同時是 gap 和 low 時', '永遠不會成立'],
+    answer: 0,
+    explain: '|| 是「或」：左右兩邊只要有一邊成立，整個條件就成立。'
+  },
   concepts: ['else if 多分支', '字串比較 ===', '邏輯或 ||', '通用邏輯（換地圖也能過）'],
   description: `廢棄太空站的緊急撤離通道啟動了！太空探險家要穿過一段充滿陷阱的走廊，抵達終點的逃生艙。每一步探險家都會偵測「前方一格」的地形（ahead），你要寫出決策函式 decide(ahead)，回傳要做的動作：平地用 'run' 前進、缺口與低矮障礙要 'jump' 跳過、高空橫桿要 'slide' 滑壘通過。注意：每種地形只有一個正確動作，做錯就會摔倒！完成後用 runner.setAutoRun(decide) 註冊，探險家就會自動跑完整條賽道。但小心——系統還會把你的程式丟到 3 條沒公開的新賽道考驗，只會背「第幾步要跳」是過不了的，必須根據眼前的地形做決定！`,
   targetRequirements: [
@@ -71,6 +81,7 @@ runner.setAutoRun(decide);`,
     if (!call || !call.isFunction) {
       return {
         pass: false,
+        reqIndex: 4,
         error: '沒有偵測到 runner.setAutoRun(函式)！請定義 decide(ahead) 並用 runner.setAutoRun(decide) 註冊。'
       };
     }
@@ -103,8 +114,10 @@ runner.setAutoRun(decide);`,
         const hiddenNote = course.visible
           ? ''
           : '\n💡 訓練場能過、換賽道卻失敗，代表規則少考慮了某種地形，或是用了只適用單一賽道的寫法。';
+        const TERRAIN_REQ = { gap: 0, low: 1, high: 2, ground: 3, finish: 3 };
         return {
           pass: false,
+          reqIndex: TERRAIN_REQ[run.fail?.ahead] ?? null,
           failReason: run.fail?.reason || 'ERROR',
           error: `【${course.name}】${detail}${hiddenNote}`,
           data: {

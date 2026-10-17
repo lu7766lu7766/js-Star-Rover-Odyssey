@@ -323,9 +323,9 @@ html, body {
   white-space: nowrap;
 }
 
-/* 固定桌面佈局：頂欄與 3D HUD 按鈕列一律單行，窄視窗改水平捲動而非換行跑版 */
+/* 頂欄與 3D HUD 按鈕列一律單行；最小寬度配合工作台（窄螢幕時任務欄收成抽屜） */
 .level-topbar {
-  min-width: 1240px;
+  min-width: 940px;
   overflow-x: auto;
 }
 

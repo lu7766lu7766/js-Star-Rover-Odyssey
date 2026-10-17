@@ -4,7 +4,7 @@
     <div class="hud-header">
       <div class="header-left">
         <Radio :size="15" class="icon-radio" />
-        <span class="hud-title">DRONE FLEET TELEMETRY MATRIX</span>
+        <span class="hud-title">無人機編隊狀態</span>
       </div>
       <span class="beacon-dot"></span>
     </div>
@@ -29,18 +29,18 @@
                 : 'badge-cyan'
             ]"
           >
-            {{ d.status || 'STANDBY' }}
+            {{ d.order || '待命' }}
           </span>
         </div>
 
         <div class="drone-coords">
-          <span class="coord-label">POS:</span>
+          <span class="coord-label">位置</span>
           <span class="coord-val">[{{ d.x }}, {{ d.y }}, {{ d.z }}]</span>
         </div>
 
         <div class="battery-section">
           <div class="battery-header">
-            <span class="battery-label">PWR CELLS</span>
+            <span class="battery-label">電量 battery</span>
             <span
               class="battery-val"
               :class="{ 'text-danger': d.battery < 20 }"

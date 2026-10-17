@@ -34,7 +34,19 @@ export default {
   id: 6,
   title: '太空艙控制中心',
   subtitle: '2D 網頁修復任務 · 事件與 DOM',
+  // 一句話任務目標（任務欄最上方）
+  goal: '幫網頁按鈕接上事件：先解除警報，才能打開氣閘門',
   conceptTitle: '使用者與網頁的橋樑：事件驅動',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: '大括號裡的程式什麼時候會執行？',
+    code: `button.addEventListener('click', () => {
+  status.textContent = '警報系統關閉';
+});`,
+    options: ['程式一載入就立刻執行', '使用者點擊按鈕的時候', '滑鼠移到按鈕上的時候'],
+    answer: 1,
+    explain: '接電線的當下不會執行；要等使用者真的點擊（click），瀏覽器才會呼叫這個回呼函式。'
+  },
   concepts: ['DOM 元素選擇', '事件監聽器 (addEventListener)', 'textContent / style 即時改寫'],
   description: `太空艙的控制「網頁」當機了！上方 2D 視窗就是一整個故障中的儀表板網頁：警報燈狂閃、氣閘門鎖死。2D 儀表板上有 4 個元素：解除警報按鈕、氣閘按鈕、狀態燈、氣閘艙門，請照著任務需求將程式接起來。`,
   targetRequirements: [
@@ -102,12 +114,14 @@ airlockButton.addEventListener('click', () => {
       if (!listensTo(wiring, 'disarm-btn', 'click')) {
         return {
           pass: false,
+          reqIndex: 1,
           error: '#disarm-btn 沒有接上 click 監聽！請寫 disarmButton.addEventListener(\'click\', ...)（mouseover / dblclick 不算，日常按鈕用點擊）。'
         };
       }
       if (!listensTo(wiring, 'airlock-btn', 'click')) {
         return {
           pass: false,
+          reqIndex: 1,
           error: '#airlock-btn 沒有接上 click 監聽！請寫 airlockButton.addEventListener(\'click\', ...)。'
         };
       }
@@ -129,18 +143,21 @@ airlockButton.addEventListener('click', () => {
       if (isDoorOpen(doorOf(wrong))) {
         return {
           pass: false,
+          reqIndex: 3,
           error: '安全協議被繞過！警報還沒解除時點擊開門，門竟然開了。氣閘回呼裡必須先判斷警報狀態（例如 if (!isAlarmActive)），警報中禁止開門！'
         };
       }
       if (!isStatusNormal(statusOf(correct))) {
         return {
           pass: false,
+          reqIndex: 2,
           error: '解除警報沒生效！點擊 #disarm-btn 後，#status-indicator 應該轉為警報系統關閉（改 textContent 和 style.color 試試）。'
         };
       }
       if (!isDoorOpen(doorOf(correct))) {
         return {
           pass: false,
+          reqIndex: 3,
           error: '氣閘沒開！解除警報後點擊 #airlock-btn，#airlock-door 應該滑開（加上 open class、改文字）。'
         };
       }

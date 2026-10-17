@@ -16,6 +16,7 @@ const workerSelf = self;
 let currentMockDoc = null;
 let recordedAPICalls = [];
 let capturedLogs = [];
+let capturedVariables = [];
 
 function postLog(type, args) {
   if (capturedLogs.length >= 100) return;
@@ -89,6 +90,7 @@ workerSelf.onmessage = function (e) {
     const { code, levelId, initialData } = payload;
     recordedAPICalls = [];
     capturedLogs = [];
+    capturedVariables = [];
 
     currentMockDoc = new MockDocument((mutation) => {
       workerSelf.postMessage({
@@ -120,6 +122,8 @@ workerSelf.onmessage = function (e) {
         assert: sandboxedAssert,
         document: currentMockDoc,
         ...gameApi
+      }, {
+        onVariables: (vars) => { capturedVariables = vars; }
       });
 
       // Execute student code, then flush async continuations (L8 async/await):
@@ -135,6 +139,7 @@ workerSelf.onmessage = function (e) {
               result: null,
               logs: capturedLogs,
               apiCalls: recordedAPICalls,
+              variables: capturedVariables,
               domState: currentMockDoc.getSnapshot()
             }
           });
@@ -144,6 +149,7 @@ workerSelf.onmessage = function (e) {
         type: MSG_TYPE.EXECUTION_ERROR,
         payload: {
           error: err.message || String(err),
+          name: err.name,
           stack: err.stack,
           logs: capturedLogs,
           apiCalls: recordedAPICalls

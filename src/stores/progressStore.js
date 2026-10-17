@@ -38,6 +38,12 @@ export const useProgressStore = defineStore('progress', {
       unlockedLevels: unlocked,
       completedLevels: loaded.completedLevels || [],
       savedOperations: loaded.savedOperations || {},
+      // 每關最佳星數 { 關卡 id: 1~3 }
+      levelStars: loaded.levelStars || {},
+      // 第 1 關取的船名，之後每關沿用
+      roverName: loaded.roverName || '',
+      // 錯誤圖鑑 { 錯誤類型: 遇到次數 }
+      errorDex: loaded.errorDex || {},
       isDeveloperMode: false,
       isSoundMuted: localStorage.getItem('star_rover_sound_muted') === 'true',
       // 教室電腦老舊，預設開啟低效能模式（除非使用者明確關過）
@@ -59,7 +65,10 @@ export const useProgressStore = defineStore('progress', {
     totalLevels: () => ALL_LEVELS.length,
     progressPercentage: (state) => {
       return Math.round((state.completedLevels.length / ALL_LEVELS.length) * 100);
-    }
+    },
+    getLevelStars: (state) => (levelId) => state.levelStars[levelId] || 0,
+    totalStars: (state) => Object.values(state.levelStars).reduce((sum, n) => sum + n, 0),
+    maxStars: () => ALL_LEVELS.length * 3
   },
 
   actions: {
@@ -96,14 +105,32 @@ export const useProgressStore = defineStore('progress', {
       }
     },
 
-    markLevelCompleted(levelId) {
+    markLevelCompleted(levelId, stars = 0) {
       if (!this.completedLevels.includes(levelId)) {
         this.completedLevels.push(levelId);
+      }
+      const earned = Math.max(0, Math.min(3, Math.round(Number(stars) || 0)));
+      if (earned > (this.levelStars[levelId] || 0)) {
+        this.levelStars[levelId] = earned;
       }
       const nextId = getNextLevelId(levelId);
       if (nextId !== null && !this.unlockedLevels.includes(nextId)) {
         this.unlockedLevels.push(nextId);
       }
+      this.persist();
+    },
+
+    setRoverName(name) {
+      const clean = typeof name === 'string' ? name.trim().slice(0, 20) : '';
+      if (clean && clean !== this.roverName) {
+        this.roverName = clean;
+        this.persist();
+      }
+    },
+
+    recordError(type) {
+      if (!type) return;
+      this.errorDex[type] = (this.errorDex[type] || 0) + 1;
       this.persist();
     },
 
@@ -143,7 +170,10 @@ export const useProgressStore = defineStore('progress', {
         currentLevel: this.currentLevelId,
         unlockedLevels: this.unlockedLevels,
         completedLevels: this.completedLevels,
-        savedOperations: this.savedOperations
+        savedOperations: this.savedOperations,
+        levelStars: this.levelStars,
+        roverName: this.roverName,
+        errorDex: this.errorDex
       });
     },
 
@@ -154,7 +184,10 @@ export const useProgressStore = defineStore('progress', {
         currentLevel: this.currentLevelId,
         unlockedLevels: this.unlockedLevels,
         completedLevels: this.completedLevels,
-        savedOperations: this.savedOperations
+        savedOperations: this.savedOperations,
+        levelStars: this.levelStars,
+        roverName: this.roverName,
+        errorDex: this.errorDex
       });
     },
 
@@ -167,6 +200,9 @@ export const useProgressStore = defineStore('progress', {
       this.unlockedLevels = migrateUnlockedLevels(result.data.unlockedLevels);
       this.completedLevels = result.data.completedLevels;
       this.savedOperations = result.data.savedOperations || {};
+      this.levelStars = result.data.levelStars || {};
+      this.roverName = result.data.roverName || '';
+      this.errorDex = result.data.errorDex || {};
       // Imported save may carry a level view; only honor it when unlocked.
       this.currentView = result.data.currentView === 'level' && this.unlockedLevels.includes(this.currentLevelId)
         ? 'level'

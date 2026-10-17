@@ -7,15 +7,15 @@
     <div v-else class="canvas-wrapper" ref="canvasContainer"></div>
     <div v-if="levelId !== 6" class="viewport-vignette" aria-hidden="true"></div>
 
-    <!-- Viewport Optical HUD Header (Top Left / Right) -->
+    <!-- 左上角：學生在第 1 關取的船名，一路跟著每一關 -->
     <div v-if="levelId !== 6" class="viewport-telemetry-banner">
       <div class="telemetry-item">
         <span class="beacon-dot"></span>
-        <span class="telemetry-label">3D OPTICAL SENSOR</span>
+        <span class="telemetry-label">{{ shipLabel }}</span>
       </div>
       <div class="telemetry-item hide-mobile">
-        <span class="telemetry-dim">SUB-ORBIT:</span>
-        <span class="telemetry-val">ALT 142.8 KM</span>
+        <span class="telemetry-dim">第 {{ levelNumber }} 站</span>
+        <span class="telemetry-val">{{ level.title }}</span>
       </div>
     </div>
 
@@ -41,32 +41,76 @@
     <div v-if="levelId !== 6 && contextLost" class="context-lost-banner">
       <AlertTriangle :size="22" class="text-danger" />
       <div class="banner-text">
-        <strong>3D 圖形核心中斷 · WEBGL CONTEXT INTERRUPTED</strong>
-        <span>瀏覽器已釋放 GPU 圖形資源，請點擊右側按鈕重新建立連線。</span>
+        <strong>3D 畫面暫時中斷了</strong>
+        <span>電腦的顯示資源被瀏覽器收回，按右邊的按鈕就能重新顯示。</span>
       </div>
       <button class="btn btn-primary btn-sm" @click="reinitScene">重新連線</button>
     </div>
 
-    <!-- Level Complete Success Milestone Modal -->
+    <!-- 通關卡片：星數、學到了什麼、出場券小測驗、通關碼 -->
     <div v-if="showSuccessModal" class="success-overlay" @click.self="closeSuccess">
-      <div class="success-card glass-panel pulse-glow">
+      <div class="success-card">
         <div class="confetti-container" aria-hidden="true">
           <span v-for="n in 24" :key="n" class="confetti" :style="confettiStyle(n)">{{ confettiEmoji(n) }}</span>
         </div>
-        <div class="success-badge-container">
-          <div class="badge-ring"></div>
-          <div class="success-icon-wrapper">
-            <Award :size="42" class="icon-award" />
-          </div>
+
+        <div class="success-stars" :aria-label="`獲得 ${earnedStars} 顆星`">
+          <Star
+            v-for="n in 3"
+            :key="n"
+            :size="40"
+            class="big-star"
+            :class="n <= earnedStars ? 'star-on' : 'star-off'"
+            :style="{ animationDelay: `${n * 0.18}s` }"
+          />
         </div>
 
         <div class="success-headings">
-          <span class="sub-heading">MISSION NOMINAL · TELEMETRY VERIFIED</span>
           <h3 class="success-title">任務圓滿達成！</h3>
+          <span class="success-sub">「{{ shipLabel }}」完成第 {{ levelNumber }} 站：{{ level.title }}</span>
         </div>
 
         <div class="success-feedback-box">
           <p class="success-feedback">{{ feedbackText }}</p>
+        </div>
+
+        <div class="recap-box">
+          <div class="recap-label">
+            <BookOpen :size="15" />
+            <span>你剛剛學會了</span>
+          </div>
+          <p class="recap-text">{{ level.conceptTitle }}</p>
+          <button v-if="level.jsCodeExample" class="recap-toggle" @click="showExample = !showExample">
+            {{ showExample ? '收起範例寫法' : '看看完整的範例寫法' }}
+          </button>
+          <pre v-if="showExample" class="recap-code">{{ level.jsCodeExample }}</pre>
+        </div>
+
+        <div v-if="level.quiz" class="quiz-box">
+          <div class="recap-label">
+            <HelpCircle :size="15" />
+            <span>出場券：{{ level.quiz.question }}</span>
+          </div>
+          <pre v-if="level.quiz.code" class="recap-code">{{ level.quiz.code }}</pre>
+          <div class="quiz-options">
+            <button
+              v-for="(opt, idx) in level.quiz.options"
+              :key="idx"
+              class="quiz-option"
+              :class="quizOptionClass(idx)"
+              :disabled="quizChoice !== null"
+              @click="quizChoice = idx"
+            >
+              {{ opt }}
+            </button>
+          </div>
+          <p v-if="quizChoice !== null" class="quiz-explain" :class="quizCorrect ? 'is-correct' : 'is-wrong'">
+            {{ quizCorrect ? '答對了！' : '再想想～' }}{{ level.quiz.explain }}
+          </p>
+        </div>
+
+        <div class="pass-code" title="給老師登記用；老師可以在教師密令視窗驗證">
+          通關碼 <code>{{ passCode }}</code>
         </div>
 
         <div class="success-actions">
@@ -74,56 +118,35 @@
             留在本站觀察
           </button>
           <button v-if="hasNextLevel" class="btn btn-success" @click="goToNextLevel">
-            <span>前往下一站導航</span>
+            <span>前往下一站</span>
             <ArrowRight :size="16" />
           </button>
           <button v-else class="btn btn-success" @click="closeSuccess">
-            <span>恭喜通關全課程！</span>
+            <span>恭喜完成全部課程！</span>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Level Failed Diagnostic Alert Modal (UX Consistency with Success Modal) -->
-    <div v-if="showFailModal" class="fail-overlay" @click.self="closeFail">
-      <div class="fail-card glass-panel pulse-glow-amber">
-        <div class="fail-badge-container">
-          <div class="fail-badge-ring"></div>
-          <div class="fail-icon-wrapper">
-            <AlertTriangle :size="38" class="icon-fail" />
-          </div>
-        </div>
-
-        <div class="fail-headings">
-          <span class="sub-heading text-warning">DIAGNOSTIC ALERT · TELEMETRY INCOMPLETE</span>
-          <h3 class="fail-title">遙測自檢未通過</h3>
-        </div>
-
-        <div class="fail-feedback-box">
-          <p class="fail-feedback">{{ failureErrorText }}</p>
-        </div>
-
-        <div class="fail-suggestion-box">
-          <div class="suggestion-header">
-            <Lightbulb :size="14" class="text-brand" />
-            <strong class="suggestion-title">💡 偵錯建議指引：</strong>
-          </div>
-          <p class="suggestion-text">{{ failureSuggestionText }}</p>
-        </div>
-
-        <div class="fail-actions">
-          <button class="btn btn-secondary btn-sm" @click="closeFail">
-            留在現場觀察
-          </button>
-          <button class="btn btn-outline btn-sm" @click="openHint">
-            <Lightbulb :size="15" />
-            <span>查看思考提示</span>
-          </button>
-          <button class="btn btn-primary" @click="restoreAndTune">
-            <RotateCcw :size="15" />
-            <span>場景還原並調整</span>
-          </button>
-        </div>
+    <!-- 沒通過：底部小提示，不擋住 3D 失敗畫面；詳細說明在程式碼區 -->
+    <div v-if="showFailModal" class="fail-toast" role="status">
+      <span class="fail-toast-icon" aria-hidden="true">{{ failIcon }}</span>
+      <div class="fail-toast-text">
+        <strong>還差一步！</strong>
+        <span>{{ failSummary }}</span>
+      </div>
+      <div class="fail-toast-actions">
+        <button class="btn btn-sm btn-outline" @click="openHint">
+          <Lightbulb :size="14" />
+          <span>提示</span>
+        </button>
+        <button class="btn btn-sm btn-primary" @click="restoreAndTune">
+          <RotateCcw :size="14" />
+          <span>重設場景</span>
+        </button>
+        <button class="fail-toast-close" @click="closeFail" title="關閉" aria-label="關閉">
+          <X :size="16" />
+        </button>
       </div>
     </div>
   </div>
@@ -131,7 +154,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
-import { Compass, RotateCcw, AlertTriangle, Award, ArrowRight, Lightbulb } from 'lucide-vue-next';
+import { Compass, RotateCcw, AlertTriangle, ArrowRight, Lightbulb, Star, BookOpen, HelpCircle, X } from 'lucide-vue-next';
 import { SceneManager } from '../../game/core/SceneManager.js';
 import { Level1Scene } from '../../game/scenes/Level1Scene.js';
 import { Level2Scene } from '../../game/scenes/Level2Scene.js';
@@ -142,7 +165,10 @@ import { Level6Scene } from '../../game/scenes/Level6Scene.js';
 import { Level7Scene } from '../../game/scenes/Level7Scene.js';
 import { Level8Scene } from '../../game/scenes/Level8Scene.js';
 import { Level9Scene } from '../../game/scenes/Level9Scene.js';
-import { getNextLevelId } from '../../levels/index.js';
+import { getNextLevelId, getLevelById, getLevelNumber } from '../../levels/index.js';
+import { useProgressStore } from '../../stores/progressStore.js';
+import { ERROR_DEX } from '../../utils/errorTranslator.js';
+import { makePassCode } from '../../utils/passCode.js';
 import Level6DomViewport from './Level6DomViewport.vue';
 import DroneFleetHUD from './DroneFleetHUD.vue';
 
@@ -182,23 +208,40 @@ const contextLost = ref(false);
 const showSuccessModal = computed(() => props.isSuccessModalOpen);
 const showFailModal = computed(() => props.isFailModalOpen);
 const hasNextLevel = computed(() => getNextLevelId(props.levelId) !== null);
-const feedbackText = computed(() => props.lastRunResult?.feedback || '探測船邏輯自檢完成，所有遙測數據全數通過！');
-const failureErrorText = computed(() => props.lastRunResult?.error || '遙測數據自檢未通過，請檢查參數設定。');
+const feedbackText = computed(() => props.lastRunResult?.feedback || '所有檢查全部通過！');
 
-const failureSuggestionText = computed(() => {
-  const err = failureErrorText.value;
-  if (err.includes('未命名')) return 'JavaScript 變數需賦予字串型態，請在控制面板輸入船艦名稱或點選快速代號。';
-  if (err.includes('能源不足') || err.includes('功率')) return '系統最低需 80% 功率才能啟動反應爐，請拖曳功率滑桿至 80%~100% 安全範圍。';
-  if (err.includes('防護力場') || err.includes('防護罩')) return '外太空充滿輻射危險，請將 shieldActive 設為 true (布林值真)。';
-  if (err.includes('推力不足') || err.includes('尚未抵達補給站')) return '位移 = 推力次數 × 每次速度。目標補給站位於 24 單位，請調高次數或速度達到 24！';
-  if (err.includes('超速') || err.includes('超出')) return '探測船衝過頭了！請計算 推力次數 × 速度 剛好等於 24，避免超過補給站。';
-  if (err.includes('燃料不足') || err.includes('燃料耗盡')) return '總耗油 = 推力次數 × 每次燃燒量。請調高初始燃料或調整推力次數以避免油料用罄。';
-  if (err.includes('採集數量不足')) return '迴圈執行次數過少，請將 for 迴圈次數調高以採集完 5 顆能量水晶。';
-  if (err.includes('模組型號')) return '當前模組掃描半徑不足，請更換為高階感測模組並調用 scanArea() 方法。';
-  if (err.includes('安全警報')) return '尚未解除警報！請在按鈕上觸發設定的 DOM 事件（如點擊或連擊）。';
-  if (err.includes('墜毀')) return '低電量無人機因電量不足墜毀！請提高安全電量門檻，並將低電量無人機設為返航充電。';
-  if (err.includes('氣象') || err.includes('fetch')) return '尚未取得即時氣象遙測資料，請點擊 API 請求並校準安全發射係數。';
-  return '請參閱任務目標與通關要求，調整控制面板中的對應參數後再次測試！';
+const progressStore = useProgressStore();
+const level = computed(() => getLevelById(props.levelId));
+const levelNumber = computed(() => getLevelNumber(props.levelId));
+const shipLabel = computed(() => progressStore.roverName || '探測船');
+const earnedStars = computed(() => props.lastRunResult?.data?.stars || 0);
+const passCode = computed(() => makePassCode(levelNumber.value, earnedStars.value || 1, progressStore.roverName));
+
+const failInfo = computed(() => props.lastRunResult?.errorInfo || null);
+const failIcon = computed(() => ERROR_DEX[failInfo.value?.type]?.icon || '🛠️');
+const failSummary = computed(() => {
+  const info = failInfo.value;
+  if (!info) return '看看程式碼下方的說明，改一下再試一次。';
+  if (info.line) return `第 ${info.line} 行：${info.title}（說明在程式碼裡）`;
+  const title = info.title || '';
+  return title.length > 46 ? `${title.slice(0, 46)}…（完整說明在程式碼下方）` : title;
+});
+
+// 出場券：每次打開通關卡片都重新作答
+const showExample = ref(false);
+const quizChoice = ref(null);
+const quizCorrect = computed(() => quizChoice.value === level.value.quiz?.answer);
+function quizOptionClass(idx) {
+  if (quizChoice.value === null) return '';
+  if (idx === level.value.quiz.answer) return 'is-answer';
+  if (idx === quizChoice.value) return 'is-picked-wrong';
+  return 'is-dimmed';
+}
+watch(() => props.isSuccessModalOpen, (open) => {
+  if (open) {
+    quizChoice.value = null;
+    showExample.value = false;
+  }
 });
 
 const droneFleetData = computed(() => {
@@ -508,38 +551,36 @@ onBeforeUnmount(() => {
   gap: 0.15rem;
 }
 
-/* Success Milestone Modal */
+/* 通關卡片：淡色背景、不模糊，學生還看得到 3D 通關畫面 */
 .success-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(8px);
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 30;
-  padding: 1.5rem;
+  padding: 1rem;
+  animation: fadeIn 0.25s ease-out;
 }
 
 .success-card {
   width: 100%;
-  max-width: 480px;
+  max-width: 500px;
+  max-height: 100%;
+  overflow-y: auto;
   background: #ffffff;
   border: 1px solid var(--success-border);
   box-shadow: var(--shadow-elevated), 0 0 30px rgba(16, 185, 129, 0.2);
-  padding: 2.2rem;
+  padding: 1.5rem 1.6rem;
   text-align: center;
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.15rem;
+  gap: 0.85rem;
   animation: modalEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
-  overflow: hidden;
 }
 
 .confetti-container {
@@ -569,57 +610,39 @@ onBeforeUnmount(() => {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-.success-badge-container {
-  position: relative;
-  width: 76px;
-  height: 76px;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.success-stars {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 0.35rem;
 }
 
-.badge-ring {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 2px dashed rgba(16, 185, 129, 0.5);
-  animation: rotateRing 12s linear infinite;
+.big-star {
+  animation: starPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-@keyframes rotateRing {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.big-star.star-on {
+  color: #f59e0b;
+  fill: #fbbf24;
+  filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.45));
 }
 
-.success-icon-wrapper {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--success-light);
-  border: 2px solid var(--success);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px var(--success-glow);
+.big-star.star-off {
+  color: #cbd5e1;
 }
 
-.icon-award {
-  color: var(--success-dark);
+@keyframes starPop {
+  from { transform: scale(0.2) rotate(-30deg); opacity: 0; }
+  to { transform: scale(1) rotate(0); opacity: 1; }
 }
 
 .success-headings {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-}
-
-.sub-heading {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--success-dark);
-  letter-spacing: 0.08em;
 }
 
 .success-title {
@@ -630,164 +653,219 @@ onBeforeUnmount(() => {
   letter-spacing: -0.02em;
 }
 
+.success-sub {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
 .success-feedback-box {
   background: var(--success-light);
   border: 1px solid var(--success-border);
   border-radius: var(--radius-md);
-  padding: 0.85rem 1.1rem;
+  padding: 0.7rem 1rem;
   width: 100%;
 }
 
 .success-feedback {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   color: var(--success-dark);
   line-height: 1.6;
+}
+
+.recap-box,
+.quiz-box {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-panel-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.recap-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-purple);
+}
+
+.recap-text {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 0;
+}
+
+.recap-toggle {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--primary-blue);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.recap-code {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.quiz-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.quiz-option {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.quiz-option:hover:not(:disabled) {
+  border-color: var(--primary-blue);
+  background: var(--primary-blue-light);
+}
+
+.quiz-option:disabled {
+  cursor: default;
+}
+
+.quiz-option.is-answer {
+  border-color: var(--success);
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.quiz-option.is-picked-wrong {
+  border-color: var(--warning);
+  background: var(--warning-light);
+  color: #92400e;
+}
+
+.quiz-option.is-dimmed {
+  opacity: 0.55;
+}
+
+.quiz-explain {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.quiz-explain.is-correct {
+  color: var(--success-dark);
+}
+
+.quiz-explain.is-wrong {
+  color: #92400e;
+}
+
+.pass-code {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pass-code code {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  background: var(--bg-panel-hover);
+  border: 1px dashed var(--border-medium);
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  letter-spacing: 0.06em;
 }
 
 .success-actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: 0.4rem;
   width: 100%;
   justify-content: center;
 }
 
-/* ==========================================================================
-   Failure Diagnostic Alert Modal Styles (Consistent with Success Modal)
-   ========================================================================== */
-.pulse-glow-amber {
-  box-shadow: 0 20px 48px rgba(239, 68, 68, 0.12), 0 0 0 1px rgba(239, 68, 68, 0.2);
-}
-
-.fail-overlay {
+/* 沒通過：底部小提示，不蓋住 3D 畫面 */
+.fail-toast {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(6px);
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  width: calc(100% - 2rem);
+  max-width: 560px;
+  z-index: 40;
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 80;
-  padding: 1.5rem;
-  animation: fadeIn 0.25s ease-out;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--warning-light);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  animation: toastUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.fail-card {
-  max-width: 480px;
-  width: 100%;
-  background: #ffffff;
-  border-radius: var(--radius-lg);
-  padding: 2rem 1.8rem;
+@keyframes toastUp {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.fail-toast-icon {
+  font-size: 1.5rem;
+}
+
+.fail-toast-text {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 1.1rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 0.1rem;
+  color: #78350f;
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
-.fail-badge-container {
-  position: relative;
-  width: 76px;
-  height: 76px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.fail-toast-text strong {
+  font-size: 0.95rem;
 }
 
-.fail-badge-ring {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 2px dashed rgba(239, 68, 68, 0.45);
-  animation: rotateRing 12s linear infinite reverse;
-}
-
-.fail-icon-wrapper {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: #fef2f2;
-  border: 2px solid #ef4444;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
-}
-
-.icon-fail {
-  color: #dc2626;
-}
-
-.fail-headings {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.fail-title {
-  font-family: var(--font-display);
-  font-size: 1.45rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-}
-
-.fail-feedback-box {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: var(--radius-md);
-  padding: 0.85rem 1.1rem;
-  width: 100%;
-}
-
-.fail-feedback {
-  font-size: 0.92rem;
-  color: #b91c1c;
-  line-height: 1.6;
-  font-weight: 600;
-}
-
-.fail-suggestion-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--radius-md);
-  padding: 0.85rem 1.1rem;
-  width: 100%;
-  text-align: left;
-}
-
-.suggestion-header {
+.fail-toast-actions {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.35rem;
+  flex-shrink: 0;
 }
 
-.suggestion-title {
-  font-size: 0.84rem;
-  color: var(--text-primary);
-}
-
-.suggestion-text {
-  font-size: 0.88rem;
-  color: var(--text-secondary);
-  line-height: 1.55;
-  margin: 0;
-}
-
-.fail-actions {
+.fail-toast-close {
+  border: none;
+  background: none;
+  color: #92400e;
+  cursor: pointer;
+  padding: 0.25rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  margin-top: 0.4rem;
-  width: 100%;
-  justify-content: center;
 }
 
 .btn-action-restore {

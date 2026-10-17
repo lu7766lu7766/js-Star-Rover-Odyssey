@@ -10,11 +10,78 @@ import { useDomLabStore } from './domLabStore.js';
 import { soundManager } from '../game/core/SoundManager.js';
 import { sandboxRuntime } from '../sandbox/runtime.js';
 import { findUnfilledBlank } from '../utils/codeAnalysis.js';
+import { STUDENT_CODE_LINE_OFFSET } from '../sandbox/gameApi.js';
+import {
+  translateError,
+  formatTranslatedError,
+  extractStudentLine,
+  findFullWidthIssue
+} from '../utils/errorTranslator.js';
 
-function extractLine(stack) {
-  if (!stack || typeof stack !== 'string') return '?';
-  const m = stack.match(/<anonymous>:(\d+):\d+/) || stack.match(/:(\d+):\d+/);
-  return m ? m[1] : '?';
+/** 第 i 則提示（0 起算）需要失敗幾次才解鎖：0、2、3、4… */
+export function hintUnlockFails(i) {
+  return i === 0 ? 0 : i + 1;
+}
+
+/** 沙箱執行失敗 → 翻成學生看得懂的錯誤結果 */
+function buildRuntimeError(runRes, code) {
+  const totalLines = String(code || '').split('\n').length;
+  const info = translateError({
+    message: runRes.error,
+    name: runRes.name,
+    line: extractStudentLine(runRes.stack, STUDENT_CODE_LINE_OFFSET, totalLines),
+    code
+  });
+  return {
+    pass: false,
+    error: formatTranslatedError(info),
+    errorInfo: info,
+    details: { stack: runRes.stack, logs: runRes.logs }
+  };
+}
+
+/** 執行前檢查：還有 ___ 沒填、或混進全形符號 */
+function precheckCode(code) {
+  const blank = findUnfilledBlank(code);
+  if (blank) {
+    const info = {
+      type: 'blank',
+      line: blank.line,
+      title: '還有空格「___」沒填',
+      explain: '把 ___ 換成真正的值或指令，再按執行。',
+      raw: ''
+    };
+    return { pass: false, error: formatTranslatedError(info), errorInfo: info };
+  }
+  const fw = findFullWidthIssue(code);
+  if (fw) {
+    const info = {
+      type: 'fullwidth',
+      line: fw.line,
+      title: `出現全形符號「${fw.char}」`,
+      explain: `中文輸入法打出的「${fw.char}」電腦看不懂，要改成半形的「${fw.replacement}」。${fw.count > 1 ? `程式裡一共有 ${fw.count} 個全形符號，` : ''}可以按「一鍵修正全形符號」。`,
+      fixable: true,
+      raw: ''
+    };
+    return { pass: false, error: formatTranslatedError(info), errorInfo: info };
+  }
+  return null;
+}
+
+/** 關卡驗證沒過（程式能跑、但結果不符）→ 統一補上 errorInfo */
+function withLogicInfo(evaluation) {
+  if (evaluation.pass || evaluation.errorInfo) return evaluation;
+  return {
+    ...evaluation,
+    errorInfo: {
+      type: 'logic',
+      line: null,
+      title: evaluation.error || '結果和任務要求不一樣',
+      explain: '',
+      reqIndex: typeof evaluation.reqIndex === 'number' ? evaluation.reqIndex : null,
+      raw: ''
+    }
+  };
 }
 
 export const useLevelStore = defineStore('level', {
@@ -28,6 +95,12 @@ export const useLevelStore = defineStore('level', {
     isFailModalOpen: false,
     failModalTimer: null,
     isHintModalOpen: false,
+    // 窄螢幕時任務簡報抽屜是否打開
+    isMissionDrawerOpen: false,
+    // 本關失敗次數（換關歸零），用來漸進解鎖提示
+    failCount: 0,
+    // 最近一次執行的頂層變數快照（變數盒子）
+    lastVariables: [],
     resetNonce: 0,
     // L6 送審制：程式通過後才放行手動操作，通過前 2D 不自動開門
     l6CodeApproved: false,
@@ -39,6 +112,16 @@ export const useLevelStore = defineStore('level', {
     currentLevel(state) {
       const progress = useProgressStore();
       return getLevelById(progress.currentLevelId);
+    },
+    /** 已解鎖的提示數：第 1 則一開始就能看，之後依失敗次數逐步開放（教師模式全開） */
+    unlockedHintCount(state) {
+      const total = this.currentLevel.hints?.length || 0;
+      if (useProgressStore().isDeveloperMode) return total;
+      let count = 0;
+      for (let i = 0; i < total; i++) {
+        if (state.failCount >= hintUnlockFails(i)) count++;
+      }
+      return count;
     }
   },
 
@@ -56,6 +139,37 @@ export const useLevelStore = defineStore('level', {
       this.isFailModalOpen = false;
       this.executionLogs = [];
       this.lastRunResult = null;
+      this.lastVariables = [];
+    },
+
+    /** 進入（或切換到）某一關：清掉上一關殘留的結果、彈窗與提示進度 */
+    enterLevel() {
+      this.clearLogs();
+      this.failCount = 0;
+      this.isHintModalOpen = false;
+      this.isExecuting = false;
+      this.l6CodeApproved = false;
+      this.l6ApprovedEval = null;
+      this.l6ApprovedCode = '';
+    },
+
+    /** 統一處理失敗：記錄、3D 失敗動畫、錯誤圖鑑、延遲顯示失敗提示 */
+    reportFailure(result, { delay = 750 } = {}) {
+      const progressStore = useProgressStore();
+      this.lastRunResult = result;
+      this.failCount++;
+      if (result.errorInfo?.type) progressStore.recordError(result.errorInfo.type);
+      this.appendLog({ type: 'error', message: `⚠️ [未通過] ${result.error}` });
+      if (this.sceneActionTrigger) {
+        this.sceneActionTrigger('LEVEL_FAIL', { levelId: this.currentLevel.id, evaluation: result });
+      }
+      if (this.failModalTimer) clearTimeout(this.failModalTimer);
+      if (delay > 0) {
+        this.failModalTimer = setTimeout(() => { this.isFailModalOpen = true; }, delay);
+      } else {
+        this.isFailModalOpen = true;
+      }
+      return result;
     },
 
     closeSuccessModal() {
@@ -161,7 +275,7 @@ export const useLevelStore = defineStore('level', {
       if (this.sceneActionTrigger) {
         this.sceneActionTrigger('LEVEL_SUCCESS', { levelId: 6, evaluation });
       }
-      progressStore.markLevelCompleted(6);
+      progressStore.markLevelCompleted(6, stars);
       this.appendLog({
         type: 'success',
         message: `🌟 [任務通關] ${evaluation.feedback}`
@@ -182,6 +296,8 @@ export const useLevelStore = defineStore('level', {
     async executeLevel(payload) {
       const progressStore = useProgressStore();
       const currentLevel = this.currentLevel;
+      // 快捷鍵可能在執行中再按一次，避免重複執行
+      if (this.isExecuting) return { pass: false, busy: true, error: null };
 
       this.isExecuting = true;
       this.clearLogs();
@@ -206,6 +322,12 @@ export const useLevelStore = defineStore('level', {
         // 失敗 → 直接失敗彈窗；成功 → 2D 回到鎖定態並同步接線徽章，等學生親手點擊完成。
         this.l6CodeApproved = false;
         this.l6ApprovedEval = null;
+        const l6Precheck = precheckCode(payload.code);
+        if (l6Precheck) {
+          this.reportFailure(l6Precheck, { delay: 0 });
+          this.isExecuting = false;
+          return l6Precheck;
+        }
         this.appendLog({ type: 'info', message: '🖥️ 沙箱檢查學生程式碼（只驗接線，不自動開門）…' });
         const domRes = await sandboxRuntime.runDomLevel(payload.code, {
           onLog: (log) => {
@@ -215,22 +337,12 @@ export const useLevelStore = defineStore('level', {
         });
 
         if (!domRes.success) {
-          const errResult = {
-            pass: false,
-            error: `程式執行失敗：第 ${extractLine(domRes.stack)} 行附近 → ${domRes.error}`,
-            details: { stack: domRes.stack, logs: domRes.logs }
-          };
-          this.lastRunResult = errResult;
-          this.appendLog({ type: 'error', message: `⚠️ [未通過] ${errResult.error}` });
-          if (this.sceneActionTrigger) {
-            this.sceneActionTrigger('LEVEL_FAIL', { levelId: currentLevel.id, evaluation: errResult });
-          }
-          // L6 無 3D 動畫要等，直接彈窗
-          if (this.failModalTimer) clearTimeout(this.failModalTimer);
-          this.isFailModalOpen = true;
+          // L6 無 3D 動畫要等，直接顯示
+          this.reportFailure(buildRuntimeError(domRes, payload.code), { delay: 0 });
           this.isExecuting = false;
-          return errResult;
+          return this.lastRunResult;
         }
+        this.lastVariables = domRes.variables || [];
 
         for (const l of domRes.logs || []) {
           this.appendLog({ type: l.type === 'error' ? 'error' : 'info', message: `console.${l.type}: ${l.args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}` });
@@ -252,7 +364,7 @@ export const useLevelStore = defineStore('level', {
         };
 
         // 背景已跑完正確/錯誤兩路點擊，直接用 validate 判定程式對錯（不碰 2D 開門）
-        const codeEval = currentLevel.validate(tracePayload);
+        const codeEval = withLogicInfo(currentLevel.validate(tracePayload));
         if (!codeEval.pass) {
           try {
             const domLab = useDomLabStore();
@@ -264,14 +376,8 @@ export const useLevelStore = defineStore('level', {
             domLab.setNotice(`【送審未通過】${codeEval.error}`, 'danger');
             domLab.pushLog('error', `❌ 送審未通過：${codeEval.error}`);
           } catch (e) {}
-          this.lastRunResult = codeEval;
-          this.appendLog({ type: 'error', message: `⚠️ [未通過] ${codeEval.error}` });
-          if (this.sceneActionTrigger) {
-            this.sceneActionTrigger('LEVEL_FAIL', { levelId: currentLevel.id, evaluation: codeEval });
-          }
-          // L6 無 3D 動畫要等，直接彈窗
-          if (this.failModalTimer) clearTimeout(this.failModalTimer);
-          this.isFailModalOpen = true;
+          // L6 無 3D 動畫要等，直接顯示
+          this.reportFailure(codeEval, { delay: 0 });
           this.isExecuting = false;
           return codeEval;
         }
@@ -297,21 +403,11 @@ export const useLevelStore = defineStore('level', {
         this.isExecuting = false;
         return { pass: false, pendingManual: true, error: null };
       } else if (typeof payload.code === 'string') {
-        const blank = findUnfilledBlank(payload.code);
-        if (blank) {
-          const errResult = {
-            pass: false,
-            error: `程式碼中尚有待填空的底線「___」（第 ${blank.line} 行：${blank.text}），請填入對應的數值或指令後再執行！`
-          };
-          this.lastRunResult = errResult;
-          this.appendLog({ type: 'error', message: `⚠️ [未通過] ${errResult.error}` });
-          if (this.sceneActionTrigger) {
-            this.sceneActionTrigger('LEVEL_FAIL', { levelId: currentLevel.id, evaluation: errResult });
-          }
-          if (this.failModalTimer) clearTimeout(this.failModalTimer);
-          this.failModalTimer = setTimeout(() => { this.isFailModalOpen = true; }, 750);
+        const precheck = precheckCode(payload.code);
+        if (precheck) {
+          this.reportFailure(precheck);
           this.isExecuting = false;
-          return errResult;
+          return precheck;
         }
 
         this.appendLog({ type: 'info', message: '🖥️ 沙箱執行學生程式碼中...' });
@@ -326,21 +422,11 @@ export const useLevelStore = defineStore('level', {
         });
 
         if (!runRes.success) {
-          const errResult = {
-            pass: false,
-            error: `程式執行失敗：第 ${extractLine(runRes.stack)} 行附近 → ${runRes.error}`,
-            details: { stack: runRes.stack, logs: runRes.logs }
-          };
-          this.lastRunResult = errResult;
-          this.appendLog({ type: 'error', message: `⚠️ [未通過] ${errResult.error}` });
-          if (this.sceneActionTrigger) {
-            this.sceneActionTrigger('LEVEL_FAIL', { levelId: currentLevel.id, evaluation: errResult });
-          }
-          if (this.failModalTimer) clearTimeout(this.failModalTimer);
-          this.failModalTimer = setTimeout(() => { this.isFailModalOpen = true; }, 750);
+          this.reportFailure(buildRuntimeError(runRes, payload.code));
           this.isExecuting = false;
-          return errResult;
+          return this.lastRunResult;
         }
+        this.lastVariables = runRes.variables || [];
 
         // Worker 跑出來的 logs 轉進遙測 console
         for (const l of runRes.logs || []) {
@@ -395,16 +481,19 @@ export const useLevelStore = defineStore('level', {
       await new Promise(resolve => setTimeout(resolve, animDuration));
 
       try {
-        const evaluation = currentLevel.validate(tracePayload);
-        this.lastRunResult = evaluation;
+        const evaluation = withLogicInfo(currentLevel.validate(tracePayload));
 
         if (evaluation.pass) {
+          this.lastRunResult = evaluation;
           // Notify 3D scene of success
           if (this.sceneActionTrigger) {
             this.sceneActionTrigger('LEVEL_SUCCESS', { levelId: currentLevel.id, evaluation });
           }
 
-          progressStore.markLevelCompleted(currentLevel.id);
+          progressStore.markLevelCompleted(currentLevel.id, evaluation.data?.stars);
+          if (currentLevel.id === 1 && evaluation.data?.roverName) {
+            progressStore.setRoverName(evaluation.data.roverName);
+          }
           this.appendLog({
             type: 'success',
             message: `🌟 [任務通關] ${evaluation.feedback}`
@@ -413,32 +502,20 @@ export const useLevelStore = defineStore('level', {
           if (this.failModalTimer) clearTimeout(this.failModalTimer);
           this.isFailModalOpen = false;
 
-          // Delay success modal to let user enjoy the final victory animation
+          // 先讓學生看完 3D 通關動畫，再跳出成功卡片
           if (this.successModalTimer) clearTimeout(this.successModalTimer);
           this.successModalTimer = setTimeout(() => {
             try {
               soundManager.playSuccess();
             } catch (e) {}
             this.isSuccessModalOpen = true;
-          }, 800);
+          }, 1800);
         } else {
           try {
             soundManager.playError();
           } catch (e) {}
-          this.appendLog({
-            type: 'error',
-            message: `⚠️ [未通過] ${evaluation.error}`
-          });
-
-          if (this.sceneActionTrigger) {
-            this.sceneActionTrigger('LEVEL_FAIL', { levelId: currentLevel.id, evaluation });
-          }
-
-          // Delay fail modal to let user see 3D fail state / car stop
-          if (this.failModalTimer) clearTimeout(this.failModalTimer);
-          this.failModalTimer = setTimeout(() => {
-            this.isFailModalOpen = true;
-          }, 750);
+          // 先讓學生看到 3D 失敗狀態（車停住、摔倒），再顯示提示
+          this.reportFailure(evaluation);
         }
 
         return evaluation;
@@ -446,22 +523,8 @@ export const useLevelStore = defineStore('level', {
         try {
           soundManager.playError();
         } catch (e) {}
-        const errResult = {
-          pass: false,
-          error: `執行期異常: ${err.message || String(err)}`
-        };
-        this.lastRunResult = errResult;
-        this.appendLog({
-          type: 'error',
-          message: errResult.error
-        });
-
-        if (this.failModalTimer) clearTimeout(this.failModalTimer);
-        this.failModalTimer = setTimeout(() => {
-          this.isFailModalOpen = true;
-        }, 750);
-
-        return errResult;
+        const info = translateError({ message: err.message || String(err), name: err.name, code: payload.code });
+        return this.reportFailure({ pass: false, error: formatTranslatedError(info), errorInfo: info });
       } finally {
         this.isExecuting = false;
       }

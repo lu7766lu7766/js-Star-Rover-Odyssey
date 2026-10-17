@@ -18,7 +18,7 @@ export function createLevelCompletions(levelId) {
 
   const levelSpecific = {
     1: [
-      { label: 'rover.setup', type: 'function', detail: '(name, battery, isActive) 探測船通電開機', apply: 'rover.setup(shipName, battery, isActive);' }
+      { label: 'rover.setup', type: 'function', detail: '(roverName, powerLevel, shieldActive) 探測船通電開機', apply: 'rover.setup(roverName, powerLevel, shieldActive);' }
     ],
     2: [
       { label: 'rover.launch', type: 'function', detail: '(remainingFuel) 推進發射', apply: 'rover.launch(remainingFuel);' },

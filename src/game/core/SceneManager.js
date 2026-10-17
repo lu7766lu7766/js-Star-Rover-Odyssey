@@ -225,6 +225,11 @@ export class SceneManager {
   bindEvents() {
     this.handleResize = this.onResize.bind(this);
     window.addEventListener('resize', this.handleResize);
+    // 拖曳分隔線、窄螢幕切換抽屜時，只有面板變大小、視窗沒變，也要重新調整畫布
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(this.handleResize);
+      this.resizeObserver.observe(this.container);
+    }
 
     const canvas = this.renderer.domElement;
     canvas.addEventListener('webglcontextlost', (e) => {
@@ -328,6 +333,10 @@ export class SceneManager {
   dispose() {
     this.stopLoop();
     window.removeEventListener('resize', this.handleResize);
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
 
     if (this.activeGameScene) {
       this.activeGameScene.dispose();

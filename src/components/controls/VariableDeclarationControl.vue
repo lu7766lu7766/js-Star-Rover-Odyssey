@@ -4,7 +4,7 @@
     <div class="deck-header">
       <div class="deck-title-group">
         <Variable :size="18" class="text-brand" />
-        <h3 class="deck-title">變數宣告與記憶體配置 · Variable Declaration</h3>
+        <h3 class="deck-title">通電自檢：變數與資料型態</h3>
       </div>
       <div class="deck-actions">
         <button class="btn btn-secondary btn-sm" @click="handleRestore" title="還原場景與參數至最初狀態">
@@ -26,7 +26,7 @@
           <span class="badge badge-info">3 個 let = 3星</span>
         </div>
         <div class="code-editor-wrap">
-          <CodeEditor v-model="studentCode" :level-id="1" @reset="resetCode" />
+          <CodeEditor v-model="studentCode" :level-id="1" @reset="resetCode" @run="runCodeExecution" />
         </div>
         <div class="type-hint-row">
           <span class="type-hint tag-string">String 加引號 " "</span>
@@ -43,16 +43,7 @@
             <span>{{ levelStore.isExecuting ? '通電自檢運行中...' : '執行 JS 程式碼' }}</span>
           </button>
         </div>
-        <div class="code-mode-logs" v-if="levelStore.executionLogs.length > 0">
-          <div
-            v-for="log in levelStore.executionLogs.slice(-4)"
-            :key="log.id"
-            class="mini-log"
-            :class="'mini-log-' + log.type"
-          >
-            {{ log.message }}
-          </div>
-        </div>
+        <RunFeedback />
       </div>
     </div>
 
@@ -60,7 +51,7 @@
     <div class="deck-footer">
       <div class="footer-hint">
         <span class="text-muted">
-          寫碼模式：在上方編輯器按「執行 JS 程式碼」（型態錯會直接報錯）
+          文字要加引號，數字和 true / false 不用加
         </span>
       </div>
     </div>
@@ -74,6 +65,7 @@ import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
 import { LEVEL_1_STARTER_CODE } from '../../levels/level-1.js';
 import CodeEditor from '../editor/CodeEditor.vue';
+import RunFeedback from './RunFeedback.vue';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
@@ -440,7 +432,7 @@ function resetCode() {
 }
 
 .code-editor-wrap {
-  height: 240px;
+  height: clamp(280px, 46vh, 560px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -466,32 +458,7 @@ function resetCode() {
   gap: 0.5rem;
 }
 
-.code-mode-logs {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
 
-.mini-log {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--bg-card, #f8fafc);
-  border: 1px solid var(--border-subtle);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
-.mini-log-error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
 
-.mini-log-success {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #15803d;
-}
 </style>

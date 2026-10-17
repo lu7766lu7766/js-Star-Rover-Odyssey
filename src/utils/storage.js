@@ -16,8 +16,34 @@ export const DEFAULT_SAVE_DATA = {
   unlockedLevels: [1],
   savedOperations: {},
   completedLevels: [],
+  levelStars: {},
+  roverName: '',
+  errorDex: {},
   timestamp: Date.now()
 };
+
+/** 星數：{ 關卡 id: 1~3 }，只保留合法關卡 */
+function sanitizeLevelStars(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, val] of Object.entries(raw)) {
+    const id = Number(key);
+    const stars = Math.round(Number(val));
+    if (isValidLevelId(id) && stars >= 1 && stars <= 3) out[id] = stars;
+  }
+  return out;
+}
+
+/** 錯誤圖鑑：{ 錯誤類型: 遇到次數 } */
+function sanitizeErrorDex(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, val] of Object.entries(raw)) {
+    const count = Math.floor(Number(val));
+    if (/^[a-z-]{1,32}$/.test(key) && count > 0) out[key] = Math.min(count, 9999);
+  }
+  return out;
+}
 
 /**
  * Validates the save data structure
@@ -63,6 +89,9 @@ export function validateSaveData(data) {
       unlockedLevels: Array.from(new Set(data.unlockedLevels.map(Number))).filter(isValidLevelId),
       completedLevels: Array.from(new Set(data.completedLevels.map(Number))).filter(isValidLevelId),
       savedOperations,
+      levelStars: sanitizeLevelStars(data.levelStars),
+      roverName: typeof data.roverName === 'string' ? data.roverName.trim().slice(0, 20) : '',
+      errorDex: sanitizeErrorDex(data.errorDex),
       timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now()
     }
   };

@@ -4,7 +4,7 @@
     <div class="deck-header">
       <div class="deck-title-group">
         <Globe :size="18" class="text-brand" />
-        <h3 class="deck-title">外部氣象 API 連線、JSON 解析與航區決策 · Weather API & Station Selection</h3>
+        <h3 class="deck-title">氣象站：API 與 JSON 解析</h3>
       </div>
       <div class="deck-header-actions">
         <!-- Dual Mode Toggle -->
@@ -49,7 +49,7 @@
           <span class="badge badge-info">async/await = 3星</span>
         </div>
         <div class="code-editor-wrap">
-          <CodeEditor v-model="studentCode" :level-id="8" @reset="resetCode" />
+          <CodeEditor v-model="studentCode" :level-id="8" @reset="resetCode" @run="runCodeExecution" />
         </div>
         <div class="api-ref-card">
           <div class="api-ref-title">📡 本關可用 API（沙箱內建，直接呼叫，不用 import）</div>
@@ -85,16 +85,7 @@
             <span>{{ levelStore.isExecuting ? '模擬 API 連線中...' : '執行 JS 並評估發射' }}</span>
           </button>
         </div>
-        <div class="code-mode-logs" v-if="levelStore.executionLogs.length > 0">
-          <div
-            v-for="log in levelStore.executionLogs.slice(-4)"
-            :key="log.id"
-            class="mini-log"
-            :class="'mini-log-' + log.type"
-          >
-            {{ log.message }}
-          </div>
-        </div>
+        <RunFeedback />
       </div>
 
       <!-- 1. Global Stations Selector Bar -->
@@ -374,7 +365,7 @@
     <!-- Execution Footer -->
     <div class="deck-footer">
       <div class="footer-hint">
-        <span>寫碼模式：在上方編輯器按執行（先 fetch 取數，再判斷發射）</span>
+        <span>先用 fetch 取得資料，再判斷要不要發射</span>
       </div>
     </div>
   </div>
@@ -397,6 +388,7 @@ import { useProgressStore } from '../../stores/progressStore.js';
 import { soundManager } from '../../game/core/SoundManager.js';
 import { LEVEL_8_STARTER_CODE } from '../../levels/level-8.js';
 import CodeEditor from '../editor/CodeEditor.vue';
+import RunFeedback from './RunFeedback.vue';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
@@ -1572,7 +1564,7 @@ function resetCode() {
 }
 
 .code-editor-wrap {
-  height: 300px;
+  height: clamp(280px, 46vh, 560px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1650,32 +1642,7 @@ function resetCode() {
   gap: 0.5rem;
 }
 
-.code-mode-logs {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
 
-.mini-log {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--bg-panel-hover);
-  border: 1px solid var(--border-subtle);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
-.mini-log-error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
 
-.mini-log-success {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #15803d;
-}
 </style>

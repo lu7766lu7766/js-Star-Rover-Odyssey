@@ -10,9 +10,6 @@
     >
       <!-- Pane A: 3D Viewport -->
       <section class="pane pane-viewport" aria-label="3D 遊戲場景">
-        <div class="pane-toolbar">
-          <span class="pane-eyebrow">3D 場景</span>
-        </div>
         <div class="pane-body">
           <GameViewport
             :level-id="levelStore.currentLevel.id"
@@ -40,10 +37,6 @@
 
       <!-- Pane B: Interactive Control Deck -->
       <section class="pane pane-controls" aria-label="操作控制區">
-        <div class="pane-toolbar">
-          <span class="pane-eyebrow">操作控制</span>
-          <span class="pane-meta">{{ levelStore.currentLevel.controlType }}</span>
-        </div>
         <div class="pane-body pane-body-tight">
           <ControlDeck />
         </div>
@@ -51,16 +44,19 @@
 
       <!-- Splitter: controls <-> mission -->
       <div
+        v-if="!isNarrow"
         class="splitter"
         @pointerdown="startResize($event, 'mission')"
         title="拖曳調整任務區寬度"
       />
 
+      <!-- 窄螢幕（教室投影機）：任務簡報改成右側抽屜，開關在上方工具列 -->
       <!-- Pane C: Mission Hub -->
-      <section class="pane pane-mission" aria-label="任務資訊區">
-        <div class="pane-toolbar">
-          <span class="pane-eyebrow">任務簡報</span>
-        </div>
+      <section
+        class="pane pane-mission"
+        :class="{ 'pane-mission-drawer': isNarrow, 'is-open': levelStore.isMissionDrawerOpen }"
+        aria-label="任務資訊區"
+      >
         <div class="pane-body pane-body-tight">
           <MissionHub />
         </div>
@@ -70,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import LevelTopBar from './LevelTopBar.vue';
 import GameViewport from '../game/GameViewport.vue';
 import ControlDeck from '../controls/ControlDeck.vue';
@@ -82,10 +78,31 @@ import { getNextLevelId } from '../../levels/index.js';
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
 
+// 進入工作台或切換關卡時，清掉上一關殘留的結果、彈窗與提示進度
+watch(() => levelStore.currentLevel.id, () => levelStore.enterLevel(), { immediate: true });
+
 const controlsWidth = ref(460);
 const missionWidth = ref(330);
 
+// 寬度不足 1200px 時（常見的教室投影機），任務欄收成抽屜，讓場景與程式碼有空間
+const NARROW_QUERY = '(max-width: 1199px)';
+const isNarrow = ref(typeof window !== 'undefined' && window.matchMedia(NARROW_QUERY).matches);
+let narrowMql = null;
+function handleNarrowChange(e) {
+  isNarrow.value = e.matches;
+  if (!e.matches) levelStore.isMissionDrawerOpen = false;
+}
+onMounted(() => {
+  narrowMql = window.matchMedia(NARROW_QUERY);
+  narrowMql.addEventListener('change', handleNarrowChange);
+});
+
 const gridStyle = computed(() => {
+  if (isNarrow.value) {
+    return {
+      gridTemplateColumns: `minmax(0, 1fr) 8px minmax(360px, ${controlsWidth.value}px)`
+    };
+  }
   return {
     gridTemplateColumns: `minmax(0, 1fr) 8px minmax(380px, ${controlsWidth.value}px) 8px minmax(280px, ${missionWidth.value}px)`
   };
@@ -104,8 +121,8 @@ function onResizeMove(e) {
   if (resizingWhich === 'controls') {
     // distance from right edge approximates desired control width when mission visible
     const fromRight = window.innerWidth - e.clientX;
-    const next = Math.round(fromRight - missionWidth.value - 40);
-    controlsWidth.value = Math.min(620, Math.max(380, next));
+    const next = Math.round(fromRight - (isNarrow.value ? 0 : missionWidth.value) - 40);
+    controlsWidth.value = Math.min(620, Math.max(isNarrow.value ? 360 : 380, next));
   } else if (resizingWhich === 'mission') {
     const fromRight = window.innerWidth - e.clientX;
     missionWidth.value = Math.min(400, Math.max(280, Math.round(fromRight)));
@@ -119,6 +136,7 @@ function stopResize() {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onResizeMove);
+  narrowMql?.removeEventListener('change', handleNarrowChange);
 });
 
 function handleRegisterSceneTrigger(triggerFn) {
@@ -139,7 +157,7 @@ function handleNextLevel() {
 .workspace-root {
   width: 100vw;
   height: 100vh;
-  min-width: 1280px;
+  min-width: 960px;
   display: flex;
   flex-direction: column;
   overflow-x: auto;
@@ -154,7 +172,7 @@ function handleNextLevel() {
   gap: 0;
   padding: var(--workspace-pad);
   min-height: 0;
-  min-width: 1240px;
+  min-width: 940px;
   overflow: hidden;
   position: relative;
 }
@@ -226,6 +244,22 @@ function handleNextLevel() {
   flex: 1;
   min-height: 0;
   min-width: 0;
+}
+
+.pane-mission-drawer {
+  position: absolute;
+  top: var(--workspace-pad);
+  right: var(--workspace-pad);
+  bottom: var(--workspace-pad);
+  width: min(360px, 90vw);
+  z-index: 55;
+  transform: translateX(calc(100% + 2rem));
+  transition: transform var(--transition-normal);
+  box-shadow: var(--shadow-elevated);
+}
+
+.pane-mission-drawer.is-open {
+  transform: translateX(0);
 }
 
 .splitter {

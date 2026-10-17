@@ -21,7 +21,23 @@ export default {
   id: 3,
   title: '隕石避障',
   subtitle: '條件判斷',
+  // 一句話任務目標（任務欄最上方）
+  goal: '寫出自動導航：太近就停、有點近就減速、很遠就全速前進',
   conceptTitle: '讓程式依不同情況做決定：if / else',
+  // 通關後的出場券：一題快速檢核
+  quiz: {
+    question: 'distance 是 5 的時候，會回傳什麼？',
+    code: `if (distance < 5) {
+  return 'STOP';
+} else if (distance < 15) {
+  return 'SLOW_DOWN';
+} else {
+  return 'FULL_SPEED';
+}`,
+    options: ['STOP', 'SLOW_DOWN', 'FULL_SPEED'],
+    answer: 1,
+    explain: '5 < 5 不成立（5 沒有小於 5），所以往下檢查 5 < 15，成立 → SLOW_DOWN。'
+  },
   concepts: ['條件判斷', '邏輯比較 (<, <=, >)', '分支決策'],
   description: `前方進入密集小行星亂石流！雷達感測器會持續回傳與前方隕石的「即時距離」。請為探測船的自動導航系統設定條件邏輯，根據距離做出正確的安全決策：極度接近時緊急煞停、近距離時減速觀察、遠距離時全速巡航。`,
   targetRequirements: [
@@ -79,14 +95,15 @@ function autoPilotDecision(distance) {
       }
       const r = call.testResults || {};
       const visible = [
-        { dist: 3, expected: 'STOP', reason: '距離 3（極近距離），應緊急煞停避免撞擊！' },
-        { dist: 10, expected: 'SLOW_DOWN', reason: '距離 10（警戒範圍），應減速巡航謹慎通過！' },
-        { dist: 20, expected: 'FULL_SPEED', reason: '距離 20（安全距離），應全速前進！' }
+        { dist: 3, expected: 'STOP', reason: '距離 3（極近距離），應緊急煞停避免撞擊！', reqIndex: 0 },
+        { dist: 10, expected: 'SLOW_DOWN', reason: '距離 10（警戒範圍），應減速巡航謹慎通過！', reqIndex: 1 },
+        { dist: 20, expected: 'FULL_SPEED', reason: '距離 20（安全距離），應全速前進！', reqIndex: 2 }
       ];
       for (const test of visible) {
         if (r[test.dist] !== test.expected) {
           return {
             pass: false,
+            reqIndex: test.reqIndex,
             error: `在測距為 ${test.dist} 單位時，探測船選擇了【${r[test.dist] ?? '未定義'}】，但正確行為應為【${test.expected}】。原因：${test.reason}`,
             details: { dist: test.dist, actual: r[test.dist], expected: test.expected }
           };
