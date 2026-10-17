@@ -179,6 +179,22 @@ export class SceneManager {
     this.groundGrid = grid;
   }
 
+  createStarTexture() {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.35, 'rgba(219, 234, 254, 0.8)');
+    grad.addColorStop(0.7, 'rgba(147, 197, 253, 0.25)');
+    grad.addColorStop(1, 'rgba(147, 197, 253, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(canvas);
+  }
+
   setupStarfield() {
     const particleCount = this.isLowPerformance ? 150 : 500;
     const geo = new THREE.BufferGeometry();
@@ -193,9 +209,12 @@ export class SceneManager {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const mat = new THREE.PointsMaterial({
       color: 0x93c5fd,
-      size: 0.55,
+      map: this.createStarTexture(),
+      size: 0.85,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.65,
+      depthWrite: false,
+      alphaTest: 0.02,
       sizeAttenuation: true
     });
 
@@ -280,10 +299,16 @@ export class SceneManager {
     if (this.activeGameScene) {
       this.cameraController.reset();
       this.activeGameScene.init(this);
+      const showGround = this.activeGameScene.showGlobalGround !== false;
+      if (this.groundDisc) this.groundDisc.visible = showGround;
+      if (this.groundGrid) this.groundGrid.visible = showGround;
       if (this.activeGameScene.group) {
         this.applyShadowFlags(this.activeGameScene.group);
         this.scene.add(this.activeGameScene.group);
       }
+    } else {
+      if (this.groundDisc) this.groundDisc.visible = true;
+      if (this.groundGrid) this.groundGrid.visible = true;
     }
   }
 

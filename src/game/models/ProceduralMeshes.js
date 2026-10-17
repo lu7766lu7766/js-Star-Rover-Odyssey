@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 let _glowTexture = null;
 export function createGlowTexture() {
@@ -472,33 +473,178 @@ export function createLandingPad(radius = 1.4, color = 0x10b981) {
 }
 
 /**
- * Asteroids with jittered vertices
+ * 依單位球面頂點座標計算連續平滑岩石雜訊（同一座標必得相同位移，避免網格裂開）
+ */
+function sampleAsteroidNoise(nx, ny, nz, seed) {
+  const s = seed * 17.31;
+  const n1 = Math.sin(nx * 2.8 + s) * Math.cos(ny * 2.5 - s * 0.6) * Math.sin(nz * 2.7 + s * 1.2);
+  const n2 = Math.sin((nx + ny) * 4.4 + s * 1.7) * Math.cos((ny - nz) * 4.1 - s * 0.9);
+  const n3 = Math.cos((nx * 1.6 - nz * 2.2) * 3.9 + s * 0.4) * Math.sin(ny * 5.2 + s * 2.1);
+  return n1 * 0.5 + n2 * 0.32 + n3 * 0.18;
+}
+
+/**
+ * 建立具凹陷隕石坑與不規則稜角的閉合隕石幾何體
+ */
+function buildCrateredAsteroidGeo(radius = 1.0, seed = 0, detail = 3) {
+  const baseGeo = new THREE.IcosahedronGeometry(radius, detail);
+  const geo = mergeVertices(baseGeo);
+  baseGeo.dispose();
+
+  // 為每顆隕石產生 5 個分布在球面上的凹陷隕石坑中心
+  const craters = [];
+  const craterCount = 5;
+  for (let c = 0; c < craterCount; c++) {
+    const phi = Math.acos(1 - (2 * (c + 0.5)) / craterCount);
+    const theta = Math.PI * (1 + Math.sqrt(5)) * c + seed * 2.47;
+    const cx = Math.sin(phi) * Math.cos(theta);
+    const cy = Math.cos(phi);
+    const cz = Math.sin(phi) * Math.sin(theta);
+    craters.push({
+      cx,
+      cy,
+      cz,
+      rad: 0.36 + ((c + seed) % 3) * 0.08,
+      depth: 0.22 + (c % 2) * 0.07
+    });
+  }
+
+  // 三軸不等比例縮放，讓整體輪廓像不規則岩石而非正球體
+  const sx = 1.08 + Math.sin(seed * 1.9) * 0.12;
+  const sy = 0.84 + Math.cos(seed * 2.3) * 0.08;
+  const sz = 0.96 + Math.sin(seed * 3.1) * 0.12;
+
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x0 = pos.getX(i);
+    const y0 = pos.getY(i);
+    const z0 = pos.getZ(i);
+    const len = Math.hypot(x0, y0, z0) || 1;
+    const nx = x0 / len;
+    const ny = y0 / len;
+    const nz = z0 / len;
+
+    const noise = sampleAsteroidNoise(nx, ny, nz, seed);
+    let craterOffset = 0;
+    for (let c = 0; c < craters.length; c++) {
+      const cr = craters[c];
+      const dot = THREE.MathUtils.clamp(nx * cr.cx + ny * cr.cy + nz * cr.cz, -1, 1);
+      const ang = Math.acos(dot);
+      if (ang < cr.rad * 1.18) {
+        const t = ang / cr.rad;
+        if (t < 0.82) {
+          // 碗狀凹陷坑底
+          const bowl = 1 - (t / 0.82) * (t / 0.82);
+          craterOffset -= cr.depth * bowl;
+        } else {
+          // 隕石坑邊緣微凸環形山脊
+          const rimT = (t - 0.82) / 0.36;
+          craterOffset += cr.depth * 0.26 * Math.sin(rimT * Math.PI);
+        }
+      }
+    }
+
+    const scaleFactor = Math.max(0.52, 1.0 + noise * 0.22 + craterOffset);
+    pos.setXYZ(
+      i,
+      x0 * sx * scaleFactor,
+      y0 * sy * scaleFactor,
+      z0 * sz * scaleFactor
+    );
+  }
+
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Asteroids with merged vertices, smooth rocky displacement, craters, and orbiting debris
  */
 export function createAsteroids(positions = null) {
   const group = new THREE.Group();
+  group.name = 'AsteroidField';
+
   const mats = [
-    new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.9, metalness: 0.08, flatShading: true }),
-    new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.85, metalness: 0.15, flatShading: true })
+    new THREE.MeshStandardMaterial({
+      color: 0x57534e,
+      roughness: 0.95,
+      metalness: 0.08,
+      flatShading: true,
+      emissive: 0x7c2d12,
+      emissiveIntensity: 0.12
+    }),
+    new THREE.MeshStandardMaterial({
+      color: 0x44403c,
+      roughness: 0.96,
+      metalness: 0.12,
+      flatShading: true,
+      emissive: 0x9a3412,
+      emissiveIntensity: 0.15
+    }),
+    new THREE.MeshStandardMaterial({
+      color: 0x6b5e55,
+      roughness: 0.93,
+      metalness: 0.06,
+      flatShading: true,
+      emissive: 0x431407,
+      emissiveIntensity: 0.1
+    })
   ];
 
+  // 微弱橘紅熾熱裂縫內核材質（在深隕石坑底隱約透出微光）
+  const fissureMat = new THREE.MeshStandardMaterial({
+    color: 0xea580c,
+    emissive: 0xf97316,
+    emissiveIntensity: 1.35,
+    roughness: 0.6
+  });
+
+  // 共用環繞小碎石幾何體
+  const pebbleGeo = buildCrateredAsteroidGeo(0.18, 11, 1);
+
   const defaultPositions = positions || [
-    { x: -3.5, y: 1.2, z: 12, scale: 1.2 },
-    { x: 3.8, y: 1.5, z: 8, scale: 1.5 },
-    { x: -2.0, y: 1.0, z: 4.5, scale: 0.9 }
+    { x: -1.8, y: 1.0, z: 4.5, scale: 0.95 },
+    { x: 2.3, y: 1.15, z: 6.2, scale: 1.15 },
+    { x: -3.2, y: 1.35, z: 8.2, scale: 1.35 },
+    { x: 0.6, y: 1.45, z: 9.8, scale: 1.25 },
+    { x: 3.6, y: 1.5, z: 11.2, scale: 1.45 },
+    { x: -2.2, y: 1.3, z: 12.4, scale: 1.2 }
   ];
 
   const list = [];
   defaultPositions.forEach((cfg, idx) => {
-    const geo = new THREE.DodecahedronGeometry(cfg.scale || 1.0, 1);
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const j = 1 + (Math.sin(i * 12.9898 + idx * 78.233) * 0.5 + (Math.random() - 0.5) * 0.18);
-      pos.setXYZ(i, pos.getX(i) * j, pos.getY(i) * j, pos.getZ(i) * j);
-    }
-    geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mats[idx % mats.length]);
+    const r = cfg.scale || 1.0;
+    const geo = buildCrateredAsteroidGeo(r, idx + 1, 3);
+    const mat = mats[idx % mats.length];
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(cfg.x, cfg.y, cfg.z);
-    mesh.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+    mesh.rotation.set(
+      (idx * 1.17) % Math.PI,
+      (idx * 2.03) % Math.PI,
+      (idx * 0.73) % Math.PI
+    );
+
+    // 內層熾熱岩漿核：半徑略大於最深隕石坑底，使坑底浮現橘紅熾熱裂痕
+    const coreGeo = new THREE.IcosahedronGeometry(r * 0.64, 1);
+    const coreMesh = new THREE.Mesh(coreGeo, fissureMat);
+    coreMesh.scale.set(1.04, 0.82, 0.94);
+    mesh.add(coreMesh);
+
+    // 環繞主隕石的 2 顆小碎石
+    for (let p = 0; p < 2; p++) {
+      const pebble = new THREE.Mesh(pebbleGeo, mats[(idx + p + 1) % mats.length]);
+      const angle = idx * 1.9 + p * Math.PI * 0.95;
+      const dist = r * (1.28 + p * 0.2);
+      pebble.position.set(
+        Math.cos(angle) * dist,
+        (p === 0 ? 0.25 : -0.22) * r,
+        Math.sin(angle) * dist
+      );
+      pebble.rotation.set(angle, angle * 1.3, 0);
+      pebble.scale.setScalar(0.75 + (p * 0.3) * Math.min(1.2, r));
+      mesh.add(pebble);
+    }
+
     group.add(mesh);
     list.push(mesh);
   });

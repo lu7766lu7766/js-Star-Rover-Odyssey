@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { BaseGameScene } from './BaseGameScene.js';
 import { createSciFiRover, createSciFiGrid, createLandingPad, createTextTexture } from '../models/ProceduralMeshes.js';
 import { soundManager } from '../core/SoundManager.js';
@@ -11,6 +12,43 @@ import { LEVEL_4_MAP } from '../../levels/level-4.js';
 import { simulateMaze, actionsFromApiCalls, actionsFromLoopConfig, MAZE_STEP_SECONDS } from '../sim/maze.js';
 
 const CELL_SIZE = 2.4;
+
+/**
+ * 建立玄武岩多邊形岩柱幾何體：先 mergeVertices 再做確定性頂點位移，避免裂縫並呈現嶙峋切面
+ */
+function createBasaltPillarGeometry(radiusTop, radiusBottom, height, radialSegments = 6, seed = 1) {
+  const raw = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, 4);
+  raw.translate(0, height / 2, 0);
+  const geo = mergeVertices(raw);
+  raw.dispose();
+
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i);
+    const vy = pos.getY(i);
+    const vz = pos.getZ(i);
+
+    // 底部貼齊地面不動，往上逐漸加入岩石稜角位移
+    if (vy > 0.06) {
+      const hRatio = vy / height;
+      const hash = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+      const n1 = hash - Math.floor(hash);
+      const hash2 = Math.sin((i + 1) * 45.164 + seed * 31.71) * 19341.123;
+      const n2 = hash2 - Math.floor(hash2);
+
+      const radialScale = 0.88 + n1 * 0.22 * (1.0 - hRatio * 0.25);
+      let ny = vy + (n2 - 0.5) * 0.14 * hRatio;
+      // 柱頂做斜切面感
+      if (hRatio > 0.9) {
+        ny += (vx * 0.18 - vz * 0.15) * (seed % 2 === 0 ? 1 : -1);
+      }
+      pos.setXYZ(i, vx * radialScale, Math.max(0.05, ny), vz * radialScale);
+    }
+  }
+
+  geo.computeVertexNormals();
+  return geo;
+}
 
 export class Level4Scene extends BaseGameScene {
   constructor() {
@@ -78,10 +116,13 @@ export class Level4Scene extends BaseGameScene {
     // 4. Target Base at (4, 4)
     this.buildTargetBase();
 
-    // 5. Crystal Obstacles
+    // 5. Basalt Pillar Obstacles & Red Warning Tiles
     this.buildObstacles();
 
-    // 6. Sci-Fi Rover
+    // 6. Outer Canyon Rock Formations (2+ cells away from platform edge)
+    this.buildCanyonEnvironment();
+
+    // 7. Sci-Fi Rover
     this.buildRover();
 
     this.reset();
@@ -89,31 +130,56 @@ export class Level4Scene extends BaseGameScene {
 
   buildMazePlatform() {
     this.gridPlatform = new THREE.Group();
+    const gridSpan = 6 * CELL_SIZE;
 
-    // Platform Base — 深色懸浮平台，與白色探測車形成高對比
-    const platGeo = new THREE.BoxGeometry(6 * CELL_SIZE + 0.6, 0.4, 6 * CELL_SIZE + 0.6);
+    // Platform Base — 深色懸浮平台底座（頂面 y=0.0，在棋盤格之間露出深色細縫線）
+    const platGeo = new THREE.BoxGeometry(gridSpan + 0.6, 0.4, gridSpan + 0.6);
     const platMat = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
-      roughness: 0.35,
+      roughness: 0.4,
       metalness: 0.35
     });
     const platform = new THREE.Mesh(platGeo, platMat);
     platform.position.y = -0.2;
     this.gridPlatform.add(platform);
 
-    // Glowing border rim — 亮青邊框，在深色平台與地板之間勾勒邊界
-    const rimGeo = new THREE.BoxGeometry(6 * CELL_SIZE + 0.8, 0.08, 6 * CELL_SIZE + 0.8);
+    // Glowing border rim — 只在平台外圍的四條細邊框勾勒邊界，不覆蓋 6x6 棋盤格
     const rimMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const rim = new THREE.Mesh(rimGeo, rimMat);
-    rim.position.y = 0.01;
-    this.gridPlatform.add(rim);
+    const rimThickness = 0.12;
+    const rimHeight = 0.08;
+    const rimOffset = gridSpan * 0.5 + 0.34;
 
-    // 6x6 Tile Grid Lines and Subtle Coordinate Tiles
-    // 深灰棋盤格：白色探測車、綠色目標、橘色水晶在上面都清晰可辨
-    const tileMatOdd = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
-    const tileMatEven = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 });
-    const tileGeo = new THREE.PlaneGeometry(CELL_SIZE - 0.08, CELL_SIZE - 0.08);
-    tileGeo.rotateX(-Math.PI / 2);
+    const rimHorizGeo = new THREE.BoxGeometry(gridSpan + 0.8, rimHeight, rimThickness);
+    const rimVertGeo = new THREE.BoxGeometry(rimThickness, rimHeight, gridSpan + 0.56);
+
+    const rimNorth = new THREE.Mesh(rimHorizGeo, rimMat);
+    rimNorth.position.set(0, 0.02, -rimOffset);
+    this.gridPlatform.add(rimNorth);
+
+    const rimSouth = new THREE.Mesh(rimHorizGeo, rimMat);
+    rimSouth.position.set(0, 0.02, rimOffset);
+    this.gridPlatform.add(rimSouth);
+
+    const rimWest = new THREE.Mesh(rimVertGeo, rimMat);
+    rimWest.position.set(-rimOffset, 0.02, 0);
+    this.gridPlatform.add(rimWest);
+
+    const rimEast = new THREE.Mesh(rimVertGeo, rimMat);
+    rimEast.position.set(rimOffset, 0.02, 0);
+    this.gridPlatform.add(rimEast);
+
+    // 6x6 深灰兩色棋盤格，每格之間保留 0.10 細縫線露出深色底板
+    const tileMatOdd = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.62,
+      metalness: 0.15
+    });
+    const tileMatEven = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.62,
+      metalness: 0.15
+    });
+    const tileGeo = new THREE.BoxGeometry(CELL_SIZE - 0.1, 0.04, CELL_SIZE - 0.1);
 
     for (let gx = 0; gx < 6; gx++) {
       for (let gy = 0; gy < 6; gy++) {
@@ -131,7 +197,7 @@ export class Level4Scene extends BaseGameScene {
   buildStartPad() {
     this.startPad = new THREE.Group();
     const pos = this.gridToWorld(LEVEL_4_MAP.start.x, LEVEL_4_MAP.start.y);
-    this.startPad.position.set(pos.x, 0.03, pos.z);
+    this.startPad.position.set(pos.x, 0.045, pos.z);
 
     // Cyan glowing ring
     const ringGeo = new THREE.RingGeometry(0.5, 0.9, 32);
@@ -153,7 +219,7 @@ export class Level4Scene extends BaseGameScene {
   buildTargetBase() {
     this.targetBase = new THREE.Group();
     const pos = this.gridToWorld(LEVEL_4_MAP.target.x, LEVEL_4_MAP.target.y);
-    this.targetBase.position.set(pos.x, 0.03, pos.z);
+    this.targetBase.position.set(pos.x, 0.045, pos.z);
 
     // Landing pad with green beacon
     const pad = createLandingPad(1.1, 0x10b981);
@@ -185,58 +251,195 @@ export class Level4Scene extends BaseGameScene {
 
   buildObstacles() {
     this.obstaclesGroup = new THREE.Group();
+    const isLowPerf = Boolean(this.sceneManager?.isLowPerformance);
 
-    const rockMat = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
-      roughness: 0.9,
+    // 深炭灰 / 深褐玄武岩材質（高對比擋路感，flatShading）
+    const basaltMatPrimary = new THREE.MeshStandardMaterial({
+      color: 0x3b3530,
+      roughness: 0.88,
+      metalness: 0.12,
+      flatShading: true
+    });
+    const basaltMatDark = new THREE.MeshStandardMaterial({
+      color: 0x292524,
+      roughness: 0.92,
       metalness: 0.1,
       flatShading: true
     });
 
+    // 嵌在柱頂與縫隙中的發光橘紅水晶材質
     const crystalMat = new THREE.MeshStandardMaterial({
       color: 0xf97316,
       emissive: 0xe11d48,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.85,
       roughness: 0.2,
-      metalness: 0.8
+      metalness: 0.75,
+      flatShading: true
     });
+
+    // 障礙物格地面：紅色發光危險地磚 + 霓虹紅警示外框
+    const dangerTileMat = new THREE.MeshStandardMaterial({
+      color: 0x7f1d1d,
+      emissive: 0xdc2626,
+      emissiveIntensity: 0.42,
+      roughness: 0.5,
+      metalness: 0.2
+    });
+    const warnFrameMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+
+    // 共用幾何體：地面警示磚與紅框
+    const dangerTileGeo = new THREE.BoxGeometry(CELL_SIZE - 0.16, 0.025, CELL_SIZE - 0.16);
+    const frameSpan = CELL_SIZE - 0.14;
+    const frameThick = 0.11;
+    const frameH = 0.04;
+    const frameBarHGeo = new THREE.BoxGeometry(frameSpan, frameH, frameThick);
+    const frameBarVGeo = new THREE.BoxGeometry(frameThick, frameH, frameSpan - frameThick * 2);
+    const frameEdgeOffset = frameSpan * 0.5 - frameThick * 0.5;
+
+    // 共用幾何體：4 種高低不一的多邊形玄武岩柱（高度約 1.05 ~ 1.72）與水晶
+    const pillarTallGeo = createBasaltPillarGeometry(0.34, 0.46, 1.72, 6, 11);
+    const pillarMidTallGeo = createBasaltPillarGeometry(0.32, 0.44, 1.42, 6, 23);
+    const pillarMidGeo = createBasaltPillarGeometry(0.30, 0.42, 1.18, 5, 37);
+    const pillarShortGeo = createBasaltPillarGeometry(0.28, 0.38, 1.02, 6, 53);
+
+    const crystalGeo = new THREE.ConeGeometry(0.18, 0.72, 5);
+    crystalGeo.translate(0, 0.36, 0);
 
     LEVEL_4_MAP.obstacles.forEach((ob, idx) => {
       const obGroup = new THREE.Group();
       const pos = this.gridToWorld(ob.x, ob.y);
-      obGroup.position.set(pos.x, 0, pos.z);
+      obGroup.position.set(pos.x, 0.04, pos.z);
 
-      // Base Rock formation
-      const baseRockGeo = new THREE.DodecahedronGeometry(0.85, 1);
-      const baseRock = new THREE.Mesh(baseRockGeo, rockMat);
-      baseRock.position.y = 0.55;
-      baseRock.scale.set(1.1, 0.8, 1.1);
-      obGroup.add(baseRock);
+      // 1. 地面紅色發光地磚 + 紅色警示框（一眼看出此格不可通行）
+      const dangerTile = new THREE.Mesh(dangerTileGeo, dangerTileMat);
+      dangerTile.position.y = 0.012;
+      obGroup.add(dangerTile);
 
-      // 3 Glowing Crystal Spikes per obstacle
-      const spikeGeo = new THREE.ConeGeometry(0.22, 1.2, 5);
-      spikeGeo.translate(0, 0.6, 0);
+      const frameN = new THREE.Mesh(frameBarHGeo, warnFrameMat);
+      frameN.position.set(0, 0.025, -frameEdgeOffset);
+      obGroup.add(frameN);
 
-      const spike1 = new THREE.Mesh(spikeGeo, crystalMat);
-      spike1.position.set(-0.25, 0.7, 0.1);
-      spike1.rotation.set(0.15, idx, -0.2);
-      obGroup.add(spike1);
+      const frameS = new THREE.Mesh(frameBarHGeo, warnFrameMat);
+      frameS.position.set(0, 0.025, frameEdgeOffset);
+      obGroup.add(frameS);
 
-      const spike2 = new THREE.Mesh(spikeGeo, crystalMat);
-      spike2.position.set(0.25, 0.7, -0.15);
-      spike2.rotation.set(-0.2, idx * 2, 0.25);
-      obGroup.add(spike2);
+      const frameW = new THREE.Mesh(frameBarVGeo, warnFrameMat);
+      frameW.position.set(-frameEdgeOffset, 0.025, 0);
+      obGroup.add(frameW);
 
-      const spike3 = new THREE.Mesh(spikeGeo, crystalMat);
-      spike3.position.set(0.0, 0.85, 0.2);
-      spike3.rotation.set(0.1, idx * 3, 0.05);
-      spike3.scale.set(0.8, 0.8, 0.8);
-      obGroup.add(spike3);
+      const frameE = new THREE.Mesh(frameBarVGeo, warnFrameMat);
+      frameE.position.set(frameEdgeOffset, 0.025, 0);
+      obGroup.add(frameE);
 
+      // 2. 玄武岩柱群（每格 3~4 根高低交錯岩柱，佔滿格子但不超出邊界）
+      const clusterGroup = new THREE.Group();
+      clusterGroup.rotation.y = (idx * Math.PI) / 3;
+
+      // 主岩柱（最高，約 1.72）
+      const p1 = new THREE.Mesh(pillarTallGeo, basaltMatPrimary);
+      p1.position.set(-0.22, 0.02, -0.18);
+      p1.rotation.set(0.04, idx * 0.7, -0.05);
+      clusterGroup.add(p1);
+
+      // 次高岩柱（約 1.42）
+      const p2 = new THREE.Mesh(pillarMidTallGeo, basaltMatDark);
+      p2.position.set(0.34, 0.02, -0.12);
+      p2.rotation.set(-0.05, idx * 1.3, 0.06);
+      clusterGroup.add(p2);
+
+      // 中岩柱（約 1.18）
+      const p3 = new THREE.Mesh(pillarMidGeo, basaltMatPrimary);
+      p3.position.set(0.08, 0.02, 0.36);
+      p3.rotation.set(0.06, idx * 2.1, 0.04);
+      clusterGroup.add(p3);
+
+      // 第四根矮岩柱（約 1.02，低效能模式省略以節省 draw call）
+      if (!isLowPerf) {
+        const p4 = new THREE.Mesh(pillarShortGeo, basaltMatDark);
+        p4.position.set(-0.38, 0.02, 0.28);
+        p4.rotation.set(0.05, idx * 1.7, -0.07);
+        clusterGroup.add(p4);
+      }
+
+      // 3. 嵌在柱頂與岩柱縫隙中的發光橘紅水晶
+      const c1 = new THREE.Mesh(crystalGeo, crystalMat);
+      c1.position.set(-0.18, 1.35, -0.15);
+      c1.rotation.set(0.18, idx, -0.22);
+      clusterGroup.add(c1);
+
+      const c2 = new THREE.Mesh(crystalGeo, crystalMat);
+      c2.position.set(0.32, 1.05, -0.08);
+      c2.rotation.set(-0.24, idx * 2, 0.28);
+      c2.scale.set(0.85, 0.9, 0.85);
+      clusterGroup.add(c2);
+
+      const c3 = new THREE.Mesh(crystalGeo, crystalMat);
+      c3.position.set(0.02, 0.65, 0.12);
+      c3.rotation.set(0.32, idx * 1.5, -0.15);
+      c3.scale.set(0.9, 1.05, 0.9);
+      clusterGroup.add(c3);
+
+      obGroup.add(clusterGroup);
       this.obstaclesGroup.add(obGroup);
     });
 
     this.group.add(this.obstaclesGroup);
+  }
+
+  buildCanyonEnvironment() {
+    const isLowPerf = Boolean(this.sceneManager?.isLowPerformance);
+    const canyonGroup = new THREE.Group();
+
+    const canyonRockMat = new THREE.MeshStandardMaterial({
+      color: 0x332d28,
+      roughness: 0.92,
+      metalness: 0.08,
+      flatShading: true
+    });
+    const canyonDarkMat = new THREE.MeshStandardMaterial({
+      color: 0x1e242b,
+      roughness: 0.95,
+      metalness: 0.08,
+      flatShading: true
+    });
+
+    const spireGeo = createBasaltPillarGeometry(1.1, 2.2, 5.2, 6, 71);
+    const bluffGeo = createBasaltPillarGeometry(1.8, 2.8, 3.6, 7, 89);
+
+    // 距離 6x6 平台邊緣（±7.2）至少 2 格（4.8）以上，且避開南方預設相機（z > 8, x ∈ [-12, 12]）視線
+    const formations = isLowPerf
+      ? [
+          { x: -14.5, z: -13.5, sx: 1.2, sy: 1.1, sz: 1.1, geo: spireGeo, dark: false },
+          { x: -4.5, z: -15.5, sx: 1.5, sy: 0.95, sz: 1.2, geo: bluffGeo, dark: true },
+          { x: 5.5, z: -15.0, sx: 1.3, sy: 1.15, sz: 1.1, geo: spireGeo, dark: false },
+          { x: 14.8, z: -13.0, sx: 1.4, sy: 1.0, sz: 1.2, geo: bluffGeo, dark: true },
+          { x: -15.2, z: -1.5, sx: 1.1, sy: 0.9, sz: 1.3, geo: bluffGeo, dark: false },
+          { x: 15.2, z: -1.0, sx: 1.2, sy: 0.95, sz: 1.2, geo: spireGeo, dark: true }
+        ]
+      : [
+          { x: -15.0, z: -13.5, sx: 1.3, sy: 1.2, sz: 1.1, geo: spireGeo, dark: false },
+          { x: -9.5, z: -15.2, sx: 1.5, sy: 0.95, sz: 1.2, geo: bluffGeo, dark: true },
+          { x: -3.2, z: -16.0, sx: 1.2, sy: 1.3, sz: 1.1, geo: spireGeo, dark: false },
+          { x: 3.8, z: -15.8, sx: 1.6, sy: 1.0, sz: 1.3, geo: bluffGeo, dark: true },
+          { x: 10.2, z: -14.8, sx: 1.25, sy: 1.25, sz: 1.1, geo: spireGeo, dark: false },
+          { x: 15.2, z: -12.8, sx: 1.4, sy: 1.05, sz: 1.2, geo: bluffGeo, dark: true },
+          { x: -15.5, z: -6.5, sx: 1.2, sy: 1.1, sz: 1.2, geo: spireGeo, dark: true },
+          { x: -16.0, z: 0.5, sx: 1.4, sy: 0.9, sz: 1.3, geo: bluffGeo, dark: false },
+          { x: -15.2, z: 7.2, sx: 1.1, sy: 0.85, sz: 1.1, geo: spireGeo, dark: true },
+          { x: 15.5, z: -6.0, sx: 1.3, sy: 1.05, sz: 1.2, geo: bluffGeo, dark: false },
+          { x: 16.0, z: 1.0, sx: 1.15, sy: 1.1, sz: 1.15, geo: spireGeo, dark: true },
+          { x: 15.2, z: 7.5, sx: 1.3, sy: 0.8, sz: 1.2, geo: bluffGeo, dark: false }
+        ];
+
+    formations.forEach((f, idx) => {
+      const rock = new THREE.Mesh(f.geo, f.dark ? canyonDarkMat : canyonRockMat);
+      rock.position.set(f.x, -0.25, f.z);
+      rock.scale.set(f.sx, f.sy, f.sz);
+      rock.rotation.y = idx * 1.1;
+      canyonGroup.add(rock);
+    });
+
+    this.group.add(canyonGroup);
   }
 
   buildRover() {

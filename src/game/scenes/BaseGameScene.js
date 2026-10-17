@@ -10,6 +10,7 @@ export class BaseGameScene {
     this.group = new THREE.Group();
     this.sceneManager = null;
     this.disposed = false;
+    this.showGlobalGround = true;
   }
 
   init(sceneManager) {
