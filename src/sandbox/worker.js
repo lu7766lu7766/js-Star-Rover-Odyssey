@@ -7,8 +7,8 @@
  */
 
 import { MockDocument, MockElement } from './mockDOM.js';
-import { MSG_TYPE } from './protocol.js';
-import { createGameApi, runStudentCode } from './gameApi.js';
+import { MSG_TYPE, TRACE_FN, SAFE_GET_FN } from './protocol.js';
+import { createGameApi, runStudentCode, createTraceRecorder } from './gameApi.js';
 
 const workerSelf = self;
 
@@ -115,13 +115,22 @@ workerSelf.onmessage = function (e) {
       initialData
     });
 
+    // 逐行追蹤：插樁後的程式碼會呼叫 __srT / __srV；沒插樁時這兩個全域不會被用到
+    const tracer = createTraceRecorder({
+      calls: recordedAPICalls,
+      hiddenValues: [currentMockDoc, ...Object.values(gameApi)]
+    });
+    const traceResult = () => ({ steps: tracer.steps, truncated: tracer.truncated });
+
     try {
       // Execute student code in a restricted scope
       const result = runStudentCode(code, {
         console: sandboxedConsole,
         assert: sandboxedAssert,
         document: currentMockDoc,
-        ...gameApi
+        ...gameApi,
+        [TRACE_FN]: tracer.hook,
+        [SAFE_GET_FN]: tracer.safeGet
       }, {
         onVariables: (vars) => { capturedVariables = vars; }
       });
@@ -140,6 +149,7 @@ workerSelf.onmessage = function (e) {
               logs: capturedLogs,
               apiCalls: recordedAPICalls,
               variables: capturedVariables,
+              trace: traceResult(),
               domState: currentMockDoc.getSnapshot()
             }
           });
@@ -152,7 +162,8 @@ workerSelf.onmessage = function (e) {
           name: err.name,
           stack: err.stack,
           logs: capturedLogs,
-          apiCalls: recordedAPICalls
+          apiCalls: recordedAPICalls,
+          trace: traceResult()
         }
       });
     }

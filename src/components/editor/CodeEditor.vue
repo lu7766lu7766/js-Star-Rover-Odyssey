@@ -30,6 +30,9 @@
 
     <!-- CodeMirror Viewport Container -->
     <div class="editor-viewport" ref="editorParent"></div>
+
+    <!-- 逐行追蹤工具列：執行後出現，可以一步一步看程式怎麼跑 -->
+    <TracePlayer />
   </div>
 </template>
 
@@ -46,6 +49,7 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { createLevelCompletions } from './editorConfig.js';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { fixFullWidth } from '../../utils/errorTranslator.js';
+import TracePlayer from '../controls/TracePlayer.vue';
 
 const props = defineProps({
   modelValue: {
@@ -148,6 +152,32 @@ const errorLineField = StateField.define({
   provide: (f) => EditorView.decorations.from(f)
 });
 
+// ---- 逐行追蹤：目前執行到的那一行亮青色 ----
+const setExecLineEffect = StateEffect.define();
+const execLineField = StateField.define({
+  create: () => Decoration.none,
+  update(decos, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setExecLineEffect)) {
+        const lineNo = e.value;
+        if (!lineNo || lineNo > tr.state.doc.lines) return Decoration.none;
+        return Decoration.set([Decoration.line({ class: 'cm-exec-line' }).range(tr.state.doc.line(lineNo).from)]);
+      }
+    }
+    return tr.docChanged ? Decoration.none : decos;
+  },
+  provide: (f) => EditorView.decorations.from(f)
+});
+
+function showExecLine(lineNo) {
+  if (!view) return;
+  const effects = [setExecLineEffect.of(lineNo || null)];
+  if (lineNo && lineNo <= view.state.doc.lines) {
+    effects.push(EditorView.scrollIntoView(view.state.doc.line(lineNo).from, { y: 'nearest' }));
+  }
+  view.dispatch({ effects });
+}
+
 function showErrorInEditor(info) {
   if (!view) return;
   const effects = [setErrorEffect.of(info)];
@@ -193,6 +223,10 @@ const customEditorTheme = EditorView.theme({
     color: '#00e5ff',
     fontWeight: '700'
   },
+  '.cm-exec-line': {
+    backgroundColor: 'rgba(34, 211, 238, 0.22)',
+    boxShadow: 'inset 4px 0 0 #22d3ee'
+  },
   '.cm-error-line': {
     backgroundColor: 'rgba(251, 191, 36, 0.16)',
     boxShadow: 'inset 3px 0 0 #fbbf24'
@@ -237,6 +271,7 @@ onMounted(() => {
       lineNumbers(),
       EditorView.lineWrapping,
       errorLineField,
+      execLineField,
       highlightActiveLineGutter(),
       highlightSpecialChars(),
       history(),
@@ -257,6 +292,8 @@ onMounted(() => {
       ]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
+          // 程式碼改了，舊的逐行追蹤就不準了
+          if (levelStore.traceSteps.length > 0) levelStore.clearTrace();
           const newDoc = update.state.doc.toString();
           emit('update:modelValue', newDoc);
           emit('change', newDoc);
@@ -271,6 +308,12 @@ onMounted(() => {
   });
   showErrorInEditor(levelStore.lastRunResult?.errorInfo || null);
 });
+
+// 逐行追蹤播放到第幾步，就亮那一行
+watch(
+  () => (levelStore.traceIndex === null ? null : levelStore.traceSteps[levelStore.traceIndex]?.line ?? null),
+  (lineNo) => showExecLine(lineNo)
+);
 
 // 執行結果有行號時，把錯誤標在那一行
 watch(() => levelStore.lastRunResult, (res) => {

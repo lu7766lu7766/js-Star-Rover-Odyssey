@@ -8,7 +8,7 @@ import { BaseGameScene } from './BaseGameScene.js';
 import { createSciFiRover, createSciFiGrid, createLandingPad, createTextTexture } from '../models/ProceduralMeshes.js';
 import { soundManager } from '../core/SoundManager.js';
 import { LEVEL_4_MAP } from '../../levels/level-4.js';
-import { simulateMaze, actionsFromApiCalls, actionsFromLoopConfig } from '../sim/maze.js';
+import { simulateMaze, actionsFromApiCalls, actionsFromLoopConfig, MAZE_STEP_SECONDS } from '../sim/maze.js';
 
 const CELL_SIZE = 2.4;
 
@@ -26,7 +26,7 @@ export class Level4Scene extends BaseGameScene {
     this.animQueue = [];
     this.isAnimating = false;
     this.stepTimer = 0;
-    this.stepDuration = 0.38;
+    this.stepDuration = MAZE_STEP_SECONDS;
     this.currentStep = null;
     this.startTransform = { x: 0, z: 0, rotY: 0 };
     this.targetTransform = { x: 0, z: 0, rotY: 0 };

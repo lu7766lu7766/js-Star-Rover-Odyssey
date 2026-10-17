@@ -163,8 +163,11 @@ export function translateError({ message = '', name = '', line = null, code = ''
     if (/[^\x00-\x7F]/.test(id)) {
       return result('not-defined', `找不到叫做「${id}」的變數`, `「${id}」看起來是一段文字。文字（字串）要用引號包起來，例如 "${id}"。`);
     }
-    if (id === 'True' || id === 'False') {
-      return result('not-defined', `找不到「${id}」`, `布林值要全部小寫：${id.toLowerCase()}（不加引號）。`);
+    // True / FALSE / ture / flase…：字母跟 true、false 一樣只是大小寫或順序打錯
+    const letters = id.toLowerCase().split('').sort().join('');
+    const boolWord = letters === 'ertu' ? 'true' : letters === 'aefls' ? 'false' : null;
+    if (boolWord) {
+      return result('not-defined', `找不到「${id}」`, `你是不是想寫布林值 ${boolWord}？要全部小寫、拼字正確，而且不加引號。`);
     }
     const similar = similarDeclaredName(code, id);
     if (similar) {

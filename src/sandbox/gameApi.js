@@ -243,6 +243,64 @@ export function findTopLevelDeclarations(code) {
   return found;
 }
 
+/** 逐行追蹤最多記幾步（太多步重播也看不完，還會拖慢執行） */
+export const TRACE_STEP_LIMIT = 600;
+
+const NOT_IN_SCOPE = Symbol('not-in-scope');
+
+/**
+ * 建立逐行追蹤的記錄器，搭配 utils/codeTracer.js 插樁後的程式碼使用。
+ * @param {{ calls?: any[], hiddenValues?: any[], limit?: number }} options
+ *   calls：遊戲 API 呼叫紀錄（記下每一步發生時已經呼叫了幾次 API）
+ *   hiddenValues：不顯示在變數盒子的值（例如注入的 rover、drone 等 API 物件）
+ */
+export function createTraceRecorder({ calls = [], hiddenValues = [], limit = TRACE_STEP_LIMIT } = {}) {
+  const steps = [];
+  const hidden = new Set(hiddenValues);
+  let truncated = false;
+
+  // 取不到（不在作用域、還沒宣告）就當作看不到
+  const safeGet = (getter) => {
+    try {
+      return getter();
+    } catch (e) {
+      return NOT_IN_SCOPE;
+    }
+  };
+
+  const hook = (line, getVars) => {
+    if (steps.length >= limit) {
+      truncated = true;
+      return;
+    }
+    const vars = [];
+    if (typeof getVars === 'function') {
+      try {
+        for (const [name, value] of Object.entries(getVars())) {
+          if (value === NOT_IN_SCOPE || typeof value === 'function' || hidden.has(value)) continue;
+          vars.push({ name, ...describeValue(value) });
+        }
+      } catch (e) {}
+    }
+    const last = steps[steps.length - 1];
+    // 同一行連續記到兩次（例如迴圈第一圈）就合併，只更新變數
+    if (last && last.line === line && last.calls === calls.length) {
+      last.vars = vars;
+      return;
+    }
+    steps.push({ line, calls: calls.length, vars });
+  };
+
+  return {
+    hook,
+    safeGet,
+    steps,
+    get truncated() {
+      return truncated;
+    }
+  };
+}
+
 /** 把任意值描述成「型態 + 顯示文字」，給變數盒子顯示 */
 export function describeValue(value) {
   let type = typeof value;
@@ -252,11 +310,12 @@ export function describeValue(value) {
   try {
     if (type === 'string') display = JSON.stringify(value);
     else if (type === 'function') display = 'ƒ 函式';
-    else if (type === 'object' || type === 'array') display = JSON.stringify(value);
+    // 物件的鍵名去掉引號：{"battery":85} → {battery:85}，盒子裡能多放幾個欄位
+    else if (type === 'object' || type === 'array') display = JSON.stringify(value).replace(/"([A-Za-z_$][\w$]*)":/g, '$1:');
     else display = String(value);
   } catch (e) {
     display = String(value);
   }
-  if (display && display.length > 60) display = `${display.slice(0, 57)}...`;
+  if (display && display.length > 80) display = `${display.slice(0, 77)}...`;
   return { type, display };
 }

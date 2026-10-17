@@ -61,9 +61,10 @@ describe('錯誤翻譯', () => {
     expect(t.explain).toContain('roverName');
   });
 
-  it('True / False → 提醒布林值要小寫', () => {
-    const t = translateError({ message: 'True is not defined', code: '' });
-    expect(t.explain).toContain('true');
+  it('True / False / 拼錯的 ture → 提醒布林值的寫法', () => {
+    expect(translateError({ message: 'True is not defined', code: '' }).explain).toContain('true');
+    expect(translateError({ message: 'ture is not defined', code: '' }).explain).toContain('true');
+    expect(translateError({ message: 'flase is not defined', code: '' }).explain).toContain('false');
   });
 
   it('語法錯誤會自己找行號', () => {

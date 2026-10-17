@@ -11,12 +11,69 @@ import { soundManager } from '../game/core/SoundManager.js';
 import { sandboxRuntime } from '../sandbox/runtime.js';
 import { findUnfilledBlank } from '../utils/codeAnalysis.js';
 import { STUDENT_CODE_LINE_OFFSET } from '../sandbox/gameApi.js';
+import { instrumentForTrace } from '../utils/codeTracer.js';
+import { MAZE_STEP_SECONDS } from '../game/sim/maze.js';
 import {
   translateError,
   formatTranslatedError,
   extractStudentLine,
   findFullWidthIssue
 } from '../utils/errorTranslator.js';
+
+/** 手動按「播放」時每一步停留的時間（毫秒） */
+export const TRACE_MANUAL_STEP_MS = 550;
+
+/** 3D 動畫裡「一個 API 呼叫 = 一個動作」的關卡，每個動作花多久（毫秒） */
+const ACTION_MS_BY_LEVEL = { 4: MAZE_STEP_SECONDS * 1000 };
+
+/**
+ * 執行時自動跟跑：每一步的間隔。步數少就放慢（看得清楚），步數多就加快（跟上 3D 動畫）。
+ * @param {number} totalMs 3D 動畫長度
+ * @param {number} stepCount 追蹤步數
+ */
+export function autoTraceInterval(totalMs, stepCount) {
+  if (stepCount <= 0) return 0;
+  const min = stepCount <= 12 ? 350 : 140;
+  return Math.max(min, Math.min(600, Math.round(totalMs / stepCount)));
+}
+
+/**
+ * 算出每一步要在第幾毫秒亮起。
+ * - 有 actionMs（3D 一個動作對應一個 API 呼叫）：「發出第 k 個呼叫的那一步」剛好在 3D 開始第 k 個動作時亮起，
+ *   同一段裡前面的步驟（例如迴圈判斷）平均排在前一個動作的最後 30%。
+ * - 沒有：每步固定間隔 intervalMs。
+ * @param {{ calls: number }[]} steps
+ * @returns {number[]} 每一步距離開始播放的毫秒數（遞增）
+ */
+export function buildTraceSchedule(steps, { actionMs = 0, intervalMs = TRACE_MANUAL_STEP_MS } = {}) {
+  const totalCalls = steps.length > 0 ? steps[steps.length - 1].calls : 0;
+  if (!actionMs || totalCalls < 2) {
+    return steps.map((_, i) => i * intervalMs);
+  }
+  const times = [];
+  let i = 0;
+  while (i < steps.length) {
+    const c = steps[i].calls;
+    let j = i;
+    while (j < steps.length && steps[j].calls === c) j++;
+    const count = j - i;
+    if (c >= totalCalls) {
+      // 最後一個動作之後的程式：接在動畫後面，照固定間隔
+      const base = totalCalls * actionMs;
+      for (let k = 0; k < count; k++) times.push(base + k * intervalMs);
+    } else {
+      // 這一段最後一步（發出第 c 個呼叫）在 c * actionMs 亮起；
+      // 第 0 段沒有「前一個動作」可以借時間，就擠在第一個動作的前 30%
+      const end = c === 0 ? (count === 1 ? 0 : actionMs * 0.3) : c * actionMs;
+      const start = c === 0 ? 0 : end - actionMs * 0.3;
+      for (let k = 0; k < count; k++) {
+        times.push(count === 1 ? end : start + ((end - start) * k) / (count - 1));
+      }
+    }
+    i = j;
+  }
+  return times;
+}
 
 /** 第 i 則提示（0 起算）需要失敗幾次才解鎖：0、2、3、4… */
 export function hintUnlockFails(i) {
@@ -101,6 +158,12 @@ export const useLevelStore = defineStore('level', {
     failCount: 0,
     // 最近一次執行的頂層變數快照（變數盒子）
     lastVariables: [],
+    // 逐行追蹤：每一步 { line, calls, vars }；traceIndex 為 null 代表沒有在看某一步
+    traceSteps: [],
+    traceTruncated: false,
+    traceIndex: null,
+    isTracePlaying: false,
+    traceTimer: null,
     resetNonce: 0,
     // L6 送審制：程式通過後才放行手動操作，通過前 2D 不自動開門
     l6CodeApproved: false,
@@ -140,6 +203,81 @@ export const useLevelStore = defineStore('level', {
       this.executionLogs = [];
       this.lastRunResult = null;
       this.lastVariables = [];
+      this.clearTrace();
+    },
+
+    // ---- 逐行追蹤播放 ----
+    setTrace(trace) {
+      this.clearTrace();
+      this.traceSteps = trace?.steps || [];
+      this.traceTruncated = !!trace?.truncated;
+    },
+
+    clearTrace() {
+      this.pauseTrace();
+      this.traceSteps = [];
+      this.traceTruncated = false;
+      this.traceIndex = null;
+    },
+
+    pauseTrace() {
+      if (this.traceTimer) {
+        clearTimeout(this.traceTimer);
+        this.traceTimer = null;
+      }
+      this.isTracePlaying = false;
+    },
+
+    /** 跳到第 index 步（0 起算）；null 代表離開逐步模式 */
+    seekTrace(index) {
+      if (index === null || this.traceSteps.length === 0) {
+        this.traceIndex = null;
+        return;
+      }
+      this.traceIndex = Math.max(0, Math.min(this.traceSteps.length - 1, index));
+    },
+
+    stepTrace(delta) {
+      this.pauseTrace();
+      const from = this.traceIndex === null ? (delta > 0 ? -1 : this.traceSteps.length) : this.traceIndex;
+      this.seekTrace(from + delta);
+    },
+
+    /**
+     * 從頭（或目前位置）開始播放。
+     * @param {{ schedule?: number[], intervalMs?: number, maxMs?: number, fromStart?: boolean, exitAtEnd?: boolean }} options
+     *   schedule：每一步距離開始的毫秒數（執行時跟 3D 對齊用）；沒給就每步固定 intervalMs
+     *   exitAtEnd：播完自動離開逐步模式（執行時的自動跟跑用）
+     */
+    playTrace({ schedule = null, intervalMs = TRACE_MANUAL_STEP_MS, maxMs = Infinity, fromStart = false, exitAtEnd = false } = {}) {
+      if (this.traceSteps.length === 0) return;
+      this.pauseTrace();
+      const atEnd = this.traceIndex === null || this.traceIndex >= this.traceSteps.length - 1;
+      if (fromStart || atEnd) this.traceIndex = 0;
+      const first = this.traceIndex;
+      // 時間表以「目前這一步」為 0
+      const times = schedule
+        ? schedule.map((t) => t - schedule[first])
+        : this.traceSteps.map((_, i) => (i - first) * intervalMs);
+      this.isTracePlaying = true;
+      const startedAt = Date.now();
+      const finish = () => {
+        this.pauseTrace();
+        if (exitAtEnd) this.traceIndex = null;
+      };
+      const scheduleNext = () => {
+        const next = this.traceIndex + 1;
+        if (next >= this.traceSteps.length || times[next] > maxMs) {
+          // 最後一步多停留一下再結束
+          this.traceTimer = setTimeout(finish, Math.min(intervalMs, 600));
+          return;
+        }
+        this.traceTimer = setTimeout(() => {
+          this.traceIndex = next;
+          scheduleNext();
+        }, Math.max(0, times[next] - (Date.now() - startedAt)));
+      };
+      scheduleNext();
     },
 
     /** 進入（或切換到）某一關：清掉上一關殘留的結果、彈窗與提示進度 */
@@ -411,8 +549,10 @@ export const useLevelStore = defineStore('level', {
         }
 
         this.appendLog({ type: 'info', message: '🖥️ 沙箱執行學生程式碼中...' });
+        // 插樁後送進沙箱，才能逐行追蹤；插樁失敗就照原樣執行（行號不受影響）
+        const traced = instrumentForTrace(payload.code);
         const runRes = await sandboxRuntime.execute({
-          code: payload.code,
+          code: traced ? traced.code : payload.code,
           levelId: currentLevel.id,
           initialData: payload.initialData || {},
           onLog: (log) => {
@@ -422,11 +562,14 @@ export const useLevelStore = defineStore('level', {
         });
 
         if (!runRes.success) {
+          // 出錯前跑過的步驟也留著，學生可以一步步看程式是怎麼走到出錯那一行的
+          this.setTrace(runRes.trace);
           this.reportFailure(buildRuntimeError(runRes, payload.code));
           this.isExecuting = false;
           return this.lastRunResult;
         }
         this.lastVariables = runRes.variables || [];
+        this.setTrace(runRes.trace);
 
         // Worker 跑出來的 logs 轉進遙測 console
         for (const l of runRes.logs || []) {
@@ -475,6 +618,19 @@ export const useLevelStore = defineStore('level', {
         const call = tracePayload.apiCalls?.find((c) => c.api === 'runner.setAutoRun');
         const frames = call?.runs?.find((r) => r.courseId === 'A')?.frames || [];
         animDuration = Math.max(1200, Math.min(frames.length * 450 + 250, 7000));
+      }
+
+      // 編輯器跟著 3D 動畫逐行亮起；步數太多時只播到動畫結束後一下就停
+      if (this.traceSteps.length > 0) {
+        const intervalMs = autoTraceInterval(animDuration, this.traceSteps.length);
+        const actionMs = ACTION_MS_BY_LEVEL[currentLevel.id] || 0;
+        this.playTrace({
+          schedule: buildTraceSchedule(this.traceSteps, { actionMs, intervalMs }),
+          intervalMs,
+          maxMs: actionMs ? Infinity : Math.max(animDuration + 1000, 4000),
+          fromStart: true,
+          exitAtEnd: true
+        });
       }
 
       // Allow 3D animation to play out

@@ -51,8 +51,8 @@
       </div>
     </div>
 
-    <!-- 變數盒子：程式跑完後，最外層變數裡裝了什麼 -->
-    <div v-if="variables.length > 0 && !levelStore.isExecuting" class="var-boxes">
+    <!-- 變數盒子：程式跑完後，最外層變數裡裝了什麼（逐步模式時改看編輯器下方那一步的值） -->
+    <div v-if="showVarBoxes" class="var-boxes">
       <div class="section-label">
         <Box :size="13" />
         <span>變數盒子（程式跑完後，盒子裡裝了什麼）</span>
@@ -92,6 +92,9 @@ const info = computed(() => result.value?.errorInfo || null);
 const stars = computed(() => result.value?.data?.stars || 0);
 const totalHints = computed(() => levelStore.currentLevel.hints?.length || 0);
 const variables = computed(() => levelStore.lastVariables || []);
+const showVarBoxes = computed(
+  () => variables.value.length > 0 && !levelStore.isExecuting && levelStore.traceIndex === null
+);
 const dexName = computed(() => ERROR_DEX[info.value?.type]?.name || '');
 const dexIcon = computed(() => ERROR_DEX[info.value?.type]?.icon || '🛠️');
 

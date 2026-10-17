@@ -68,6 +68,7 @@ export class SandboxRuntime {
             logs: payload.logs,
             apiCalls: payload.apiCalls,
             variables: payload.variables || [],
+            trace: payload.trace || null,
             domState: payload.domState,
             result: payload.result
           });
@@ -84,7 +85,8 @@ export class SandboxRuntime {
             name: payload.name,
             stack: payload.stack,
             logs: payload.logs,
-            apiCalls: payload.apiCalls
+            apiCalls: payload.apiCalls,
+            trace: payload.trace || null
           });
         }
         break;

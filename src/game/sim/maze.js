@@ -20,6 +20,9 @@ export const MAZE_ACTION = Object.freeze({
   TURN_RIGHT: 'TURN_RIGHT'
 });
 
+/** 3D 動畫裡每一個迷宮動作（前進 / 轉彎）花的秒數；編輯器逐行追蹤也照這個節奏對齊 */
+export const MAZE_STEP_SECONDS = 0.38;
+
 /** Worker apiCalls 的 api 名稱 → 迷宮動作 */
 export const MAZE_API_TO_ACTION = Object.freeze({
   'rover.moveForward': MAZE_ACTION.FORWARD,
