@@ -47,3 +47,18 @@ describe('Storage & Save Validation', () => {
     expect(res.data.currentLevel).toBe(8);
   });
 });
+
+describe('預設存檔', async () => {
+  const { loadSaveData } = await import('../src/utils/storage.js');
+
+  it('每次載入都是獨立的一份，修改不會影響預設值', () => {
+    globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {}, clear() {} };
+    const a = loadSaveData();
+    a.unlockedLevels.push(2);
+    a.levelStars[1] = 3;
+    const b = loadSaveData();
+    expect(b.unlockedLevels).toEqual([1]);
+    expect(b.levelStars).toEqual({});
+    expect(DEFAULT_SAVE_DATA.unlockedLevels).toEqual([1]);
+  });
+});

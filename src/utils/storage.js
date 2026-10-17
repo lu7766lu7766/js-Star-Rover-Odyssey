@@ -5,6 +5,7 @@
  */
 
 import { VALID_LEVEL_IDS } from '../levels/index.js';
+import { isValidCustomMiddle } from '../game/sim/parkour.js';
 
 const STORAGE_KEY = 'star_rover_odyssey_save_v2';
 const isValidLevelId = (n) => VALID_LEVEL_IDS.includes(n);
@@ -19,8 +20,30 @@ export const DEFAULT_SAVE_DATA = {
   levelStars: {},
   roverName: '',
   errorDex: {},
+  predictionStats: { total: 0, correct: 0 },
+  predictEveryRun: false,
+  parsonsDone: {},
+  parkourCourse: [],
   timestamp: Date.now()
 };
+
+/** 暖身完成紀錄：{ 關卡 id: true }，只保留合法關卡 */
+function sanitizeLevelFlags(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, val] of Object.entries(raw)) {
+    const id = Number(key);
+    if (isValidLevelId(id) && val === true) out[id] = true;
+  }
+  return out;
+}
+
+/** 預測統計：{ total, correct }，correct 不可大於 total */
+function sanitizePredictionStats(raw) {
+  const total = Math.max(0, Math.floor(Number(raw?.total) || 0));
+  const correct = Math.max(0, Math.min(total, Math.floor(Number(raw?.correct) || 0)));
+  return { total, correct };
+}
 
 /** 星數：{ 關卡 id: 1~3 }，只保留合法關卡 */
 function sanitizeLevelStars(raw) {
@@ -92,9 +115,18 @@ export function validateSaveData(data) {
       levelStars: sanitizeLevelStars(data.levelStars),
       roverName: typeof data.roverName === 'string' ? data.roverName.trim().slice(0, 20) : '',
       errorDex: sanitizeErrorDex(data.errorDex),
+      predictionStats: sanitizePredictionStats(data.predictionStats),
+      predictEveryRun: data.predictEveryRun === true,
+      parsonsDone: sanitizeLevelFlags(data.parsonsDone),
+      parkourCourse: isValidCustomMiddle(data.parkourCourse) ? [...data.parkourCourse] : [],
       timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now()
     }
   };
+}
+
+/** 每次都給一份全新的預設存檔（淺拷貝會讓陣列、物件被不同存檔共用，改一個全部跟著變） */
+function freshDefaultSave() {
+  return JSON.parse(JSON.stringify({ ...DEFAULT_SAVE_DATA, timestamp: Date.now() }));
 }
 
 /**
@@ -104,17 +136,17 @@ export function validateSaveData(data) {
 export function loadSaveData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SAVE_DATA };
+    if (!raw) return freshDefaultSave();
     const parsed = JSON.parse(raw);
     const result = validateSaveData(parsed);
     if (result.valid) {
       return result.data;
     }
     console.warn('[Storage] Invalid saved data, falling back to default', result.error);
-    return { ...DEFAULT_SAVE_DATA };
+    return freshDefaultSave();
   } catch (err) {
     console.error('[Storage] Failed to read from localStorage:', err);
-    return { ...DEFAULT_SAVE_DATA };
+    return freshDefaultSave();
   }
 }
 

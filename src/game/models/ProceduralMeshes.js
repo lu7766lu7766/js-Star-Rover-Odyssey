@@ -70,6 +70,57 @@ export function createTextTexture(text, bgColor = '#ffffff', textColor = '#2563e
   return texture;
 }
 
+/**
+ * 船身噴漆用的文字貼圖：透明底、字太長時自動縮小塞進畫布
+ */
+function createHullNameTexture(text) {
+  if (typeof document === 'undefined') {
+    return new THREE.Texture();
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const safe = String(text).slice(0, 20);
+  let size = 72;
+  do {
+    ctx.font = `900 ${size}px Outfit, "Noto Sans TC", sans-serif`;
+    size -= 4;
+  } while (size > 24 && ctx.measureText(safe).width > canvas.width - 24);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = '#ffffff';
+  ctx.strokeText(safe, canvas.width / 2, canvas.height / 2);
+  ctx.fillStyle = '#1d4ed8';
+  ctx.fillText(safe, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+// 學生在第 1 關取的船名：之後新建的探測船都會噴上這個名字
+let currentHullName = '';
+const DEFAULT_HULL_NAME = 'STAR ROVER';
+
+export function setRoverHullName(name) {
+  currentHullName = typeof name === 'string' ? name.trim() : '';
+}
+
+/** 幫已經在場景裡的探測船換上新船名（例如剛在第 1 關取好名字） */
+export function applyHullName(roverGroup, name = currentHullName) {
+  const decals = roverGroup?.userData?.hullDecals;
+  if (!decals) return;
+  const texture = createHullNameTexture(name || DEFAULT_HULL_NAME);
+  decals.forEach((mesh) => {
+    mesh.material.map?.dispose();
+    mesh.material.map = texture;
+    mesh.material.needsUpdate = true;
+  });
+}
+
 let _hazardTexture = null;
 export function createHazardTexture() {
   if (_hazardTexture) return _hazardTexture;
@@ -313,6 +364,29 @@ export function createSciFiRover() {
   label.position.set(0, 2.18, -0.01);
   group.add(label);
   group.userData.nameLabel = label;
+
+  // 船名噴漆：左右兩側（兩個輪子中間）＋後甲板（車尾背板被推進器擋住）
+  // 用 alphaTest 挖空背景、不設 transparent：跟車身一起在不透明階段畫，
+  // 才不會被第 1 關的半透明防護罩之類的物件蓋掉
+  const hullNameMat = new THREE.MeshBasicMaterial({
+    map: createHullNameTexture(currentHullName || DEFAULT_HULL_NAME),
+    alphaTest: 0.4
+  });
+  const hullDecals = [];
+  [-1, 1].forEach((side) => {
+    const decal = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), hullNameMat);
+    decal.position.set(side * 1.162, 0.93, 0);
+    decal.rotation.y = side * Math.PI / 2;
+    group.add(decal);
+    hullDecals.push(decal);
+  });
+  // 平貼在後甲板、略高於中央藍色脊條；字的上方朝車尾，從車頭方向看是正的
+  const deckDecal = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.38), hullNameMat);
+  deckDecal.position.set(0, 1.18, -1.4);
+  deckDecal.rotation.x = -Math.PI / 2;
+  group.add(deckDecal);
+  hullDecals.push(deckDecal);
+  group.userData.hullDecals = hullDecals;
 
   // Soft under-glow
   const shadowTex = createGlowTexture();

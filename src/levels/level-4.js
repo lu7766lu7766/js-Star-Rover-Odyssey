@@ -62,6 +62,21 @@ export default {
     answer: 1,
     explain: 'i 依序是 0、1、2，共 3 次；i 變成 3 時 i < 3 不成立，迴圈就停了。'
   },
+  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
+  parsons: {
+    prompt: '先前進 4 格，左轉，再前進 2 格。',
+    solution: [
+      'for (let i = 0; i < 4; i++) {',
+      '  rover.moveForward();',
+      '}',
+      'rover.turnLeft();',
+      'for (let j = 0; j < 2; j++) {',
+      '  rover.moveForward();',
+      '}'
+    ],
+    distractors: ['for (let i = 0; i < 4; i--) {'],
+    explain: 'i++ 讓 i 每圈加 1，跑到 4 就停；寫成 i-- 的話 i 會一直變小，迴圈永遠停不下來。'
+  },
   concepts: ['for 迴圈', '路徑規劃演算法', '程式碼最佳化 (Optimal Code)'],
   description: `探測船進入了岩石嶙峋的峽谷迷宮！探測船從起點 (1, 0) 朝北出發，前方佈滿能量障礙物，直行將會撞毀。請使用 rover 的「前進、後退、左轉、右轉」指令，繞過障礙物抵達目標基地 (座標 4, 4)。只要能成功抵達即可通關；把重複前進用 for 迴圈包起來，更可以挑戰最精簡的寫法拿 3 星！`,
   targetRequirements: [

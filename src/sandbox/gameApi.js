@@ -10,7 +10,7 @@
  */
 
 import { BENCHMARK_STATION_DATA } from '../services/weatherService.js';
-import { PARKOUR_COURSES, runCourse } from '../game/sim/parkour.js';
+import { PARKOUR_COURSES, runCourse, isValidCustomCourse, CUSTOM_COURSE_ID } from '../game/sim/parkour.js';
 import { stripCommentsAndStrings } from '../utils/codeAnalysis.js';
 
 /** 簡單 API：僅記錄呼叫（命名空間 → { 方法名: 參數個數 }） */
@@ -151,13 +151,17 @@ export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
     return JSON.parse(JSON.stringify(bench));
   };
 
-  // L9：太空站跑酷 — 在所有賽道（含隱藏賽道）上真跑學生的 decide 函式
+  // L9：太空站跑酷 — 在所有賽道（含隱藏賽道）上真跑學生的 decide 函式；
+  // 創作模式傳入 initialData.customCourse 時，只跑學生自己設計的那一條
+  const courses = isValidCustomCourse(initialData.customCourse)
+    ? [{ id: CUSTOM_COURSE_ID, name: '自製賽道', visible: true, tiles: initialData.customCourse }]
+    : PARKOUR_COURSES;
   const runner = {
     setAutoRun: (decideFn) => {
       const isFunction = typeof decideFn === 'function';
       let runs = null;
       if (isFunction) {
-        runs = PARKOUR_COURSES.map((course) => ({
+        runs = courses.map((course) => ({
           courseId: course.id,
           visible: course.visible,
           ...runCourse(course.tiles, decideFn)

@@ -206,3 +206,41 @@ describe('Sandbox Game API & Security Sandbox (src/sandbox/gameApi.js)', () => {
     expect(resWindow).toBe('undefined');
   });
 });
+
+describe('創作模式：自製賽道', async () => {
+  const sim = await import('../src/game/sim/parkour.js');
+
+  it('賽道碼可以來回轉換', () => {
+    const middle = ['ground', 'gap', 'ground', 'low', 'high'];
+    const code = sim.encodeCourseCode(middle);
+    expect(code).toBe('PK-RGRLH');
+    expect(sim.decodeCourseCode(code)).toEqual(middle);
+    expect(sim.decodeCourseCode('pk-rgrlh')).toEqual(middle);
+  });
+
+  it('不合法的賽道碼回傳 null', () => {
+    expect(sim.decodeCourseCode('PK-RG')).toBe(null); // 太短
+    expect(sim.decodeCourseCode('PK-RGXRL')).toBe(null); // 未知代號
+    expect(sim.decodeCourseCode('PK-' + 'R'.repeat(19))).toBe(null); // 太長
+  });
+
+  it('Worker 收到自製賽道時只跑那一條', () => {
+    const calls = [];
+    const tiles = sim.buildCustomCourse(['gap', 'high', 'low']);
+    const api = createGameApi({ calls, initialData: { customCourse: tiles } });
+    runStudentCode(
+      "function decide(a) { if (a === 'gap' || a === 'low') return 'jump'; if (a === 'high') return 'slide'; return 'run'; }\nrunner.setAutoRun(decide);",
+      api
+    );
+    const runs = calls[0].runs;
+    expect(runs.map((r) => r.courseId)).toEqual([sim.CUSTOM_COURSE_ID]);
+    expect(runs[0].finished).toBe(true);
+  });
+
+  it('自製賽道格式不對時退回正式賽道', () => {
+    const calls = [];
+    const api = createGameApi({ calls, initialData: { customCourse: ['gap', 'finish'] } });
+    runStudentCode("runner.setAutoRun(() => 'run');", api);
+    expect(calls[0].runs.map((r) => r.courseId)).toEqual(['A', 'B', 'C', 'D']);
+  });
+});

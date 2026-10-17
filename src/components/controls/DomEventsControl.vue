@@ -91,7 +91,7 @@ function onReset() {
 }
 
 function runCodeExecution() {
-  levelStore.executeLevel({ code: studentCode.value });
+  levelStore.requestRun({ code: studentCode.value });
 }
 
 function resetCode() {

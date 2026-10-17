@@ -75,6 +75,9 @@
             <span class="progress-value">
               {{ progressStore.completedLevels.length }} / {{ ALL_LEVELS.length }} 站已通關
               <span class="star-total">★ {{ progressStore.totalStars }} / {{ progressStore.maxStars }}</span>
+              <span v-if="progressStore.predictionStats.total > 0" class="predict-total" title="執行前預測結果，猜對的次數">
+                🔮 預測準確 {{ progressStore.predictionStats.correct }} / {{ progressStore.predictionStats.total }}
+              </span>
             </span>
           </div>
           <div class="progress-track">
@@ -83,73 +86,83 @@
         </div>
       </section>
 
-      <!-- Level Exploration Map -->
+      <!-- 星際航線地圖：一條蜿蜒航線串起每一站，走過的航段會亮起來 -->
       <section class="map-section">
         <div class="section-title-wrap">
           <h3 class="section-title">星際航線地圖</h3>
-          <span class="section-subtitle">點擊已解鎖的站點即可進入；每站最多 3 顆星，重玩可以刷新紀錄</span>
+          <span class="section-subtitle">點選星球看任務內容；每站最多 3 顆星，重玩可以刷新紀錄</span>
         </div>
 
-        <div class="level-grid">
-          <div
+        <div class="starmap card">
+          <svg class="starmap-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path
+              v-for="seg in routeSegments"
+              :key="seg.key"
+              :d="seg.d"
+              class="route-seg"
+              :class="{ 'route-done': seg.done }"
+              vector-effect="non-scaling-stroke"
+            />
+          </svg>
+
+          <button
             v-for="(level, index) in ALL_LEVELS"
             :key="level.id"
-            class="level-card card"
-            :class="{
-              'level-unlocked': progressStore.isLevelUnlocked(level.id),
-              'level-completed': progressStore.isLevelCompleted(level.id),
-              'level-current': progressStore.currentLevelId === level.id,
-              'level-locked': !progressStore.isLevelUnlocked(level.id)
-            }"
-            @click="selectLevel(level.id)"
+            class="station"
+            :class="stationClass(level.id)"
+            :style="{ left: `${mapPoints[index].x}%`, top: `${mapPoints[index].y}%` }"
+            :aria-label="`第 ${index + 1} 站：${level.title}`"
+            @click="selectStation(level.id)"
+            @dblclick="selectLevel(level.id)"
           >
-            <!-- Card Header -->
-            <div class="level-card-top">
-              <span class="level-number">第 {{ getLevelNumber(level.id) }} 站</span>
-              <span v-if="progressStore.isLevelCompleted(level.id)" class="level-stars" :aria-label="`${progressStore.getLevelStars(level.id)} 顆星`">
-                <Star
-                  v-for="n in 3"
-                  :key="n"
-                  :size="15"
-                  :class="n <= progressStore.getLevelStars(level.id) ? 'star-on' : 'star-off'"
-                />
-              </span>
-              <span v-else-if="progressStore.isLevelUnlocked(level.id)" class="badge badge-blue">
-                可進行
-              </span>
-              <span v-else class="badge badge-warning">
-                <Lock :size="12" /> 未解鎖
-              </span>
-            </div>
+            <span v-if="level.id === nextPlayableLevel" class="ship-marker" :title="progressStore.roverName || '你的探測船'">🚀</span>
+            <span class="planet" :style="{ '--planet-hue': planetHue(index) }">
+              <Lock v-if="!progressStore.isLevelUnlocked(level.id)" :size="18" />
+              <span v-else class="planet-num">{{ index + 1 }}</span>
+            </span>
+            <span class="station-title">{{ level.title }}</span>
+            <span v-if="progressStore.isLevelCompleted(level.id)" class="level-stars">
+              <Star
+                v-for="n in 3"
+                :key="n"
+                :size="13"
+                :class="n <= progressStore.getLevelStars(level.id) ? 'star-on' : 'star-off'"
+              />
+            </span>
+          </button>
+        </div>
 
-            <!-- Card Body -->
-            <div class="level-card-body">
-              <h4 class="level-title">{{ level.title }}</h4>
-              <span class="level-concept">{{ level.subtitle }}</span>
-              <p class="level-desc">{{ level.goal || `${level.description.slice(0, 52)}...` }}</p>
+        <!-- 選中的站點詳情 -->
+        <div v-if="selectedLevel" class="station-detail card">
+          <div class="detail-main">
+            <span class="detail-eyebrow">第 {{ getLevelNumber(selectedLevel.id) }} 站 · {{ selectedLevel.subtitle }}</span>
+            <h4 class="detail-title">{{ selectedLevel.title }}</h4>
+            <p class="detail-goal">🎯 {{ selectedLevel.goal || selectedLevel.description.slice(0, 60) }}</p>
+            <div class="detail-tags">
+              <span v-for="tag in selectedLevel.concepts" :key="tag" class="tag-pill">#{{ tag }}</span>
             </div>
-
-            <!-- Card Tags -->
-            <div class="level-tags">
-              <span v-for="tag in level.concepts.slice(0, 2)" :key="tag" class="tag-pill">
-                #{{ tag }}
-              </span>
-            </div>
-
-            <!-- Bottom Button / Lock State -->
-            <div class="level-card-footer">
-              <button
-                v-if="progressStore.isLevelUnlocked(level.id)"
-                class="btn btn-sm"
-                :class="progressStore.isLevelCompleted(level.id) ? 'btn-outline' : 'btn-primary'"
-              >
-                <span>{{ progressStore.isLevelCompleted(level.id) ? '再次探索' : '立即啟航' }}</span>
-                <ArrowRight :size="14" />
-              </button>
-              <div v-else class="locked-hint">
-                <Lock :size="14" class="text-muted" />
-                <span>完成前置關卡後自動解鎖</span>
-              </div>
+          </div>
+          <div class="detail-action">
+            <span v-if="progressStore.isLevelCompleted(selectedLevel.id)" class="level-stars detail-stars">
+              <Star
+                v-for="n in 3"
+                :key="n"
+                :size="20"
+                :class="n <= progressStore.getLevelStars(selectedLevel.id) ? 'star-on' : 'star-off'"
+              />
+            </span>
+            <button
+              v-if="progressStore.isLevelUnlocked(selectedLevel.id)"
+              class="btn"
+              :class="progressStore.isLevelCompleted(selectedLevel.id) ? 'btn-outline' : 'btn-primary'"
+              @click="selectLevel(selectedLevel.id)"
+            >
+              <span>{{ progressStore.isLevelCompleted(selectedLevel.id) ? '再次挑戰' : '立即啟航' }}</span>
+              <ArrowRight :size="16" />
+            </button>
+            <div v-else class="locked-hint">
+              <Lock :size="14" />
+              <span>先完成前一站就會解鎖</span>
             </div>
           </div>
         </div>
@@ -291,6 +304,54 @@ const verifyCode = ref('');
 const verifyResult = ref(null);
 function checkPassCode() {
   verifyResult.value = verifyPassCode(verifyCode.value, verifyName.value);
+}
+
+// 航線上每一站的位置（百分比）：左右排開、上下交錯成一條蜿蜒航線
+const MAP_Y = [70, 32, 64, 26, 66, 30, 62, 28, 64];
+const mapPoints = computed(() => {
+  const n = ALL_LEVELS.length;
+  return ALL_LEVELS.map((_, i) => ({
+    x: n === 1 ? 50 : 6 + (i * 88) / (n - 1),
+    y: MAP_Y[i % MAP_Y.length]
+  }));
+});
+
+/** 相鄰兩站之間的航段；出發那一站已通關，這段就亮起來 */
+const routeSegments = computed(() => {
+  const pts = mapPoints.value;
+  return pts.slice(0, -1).map((a, i) => {
+    const b = pts[i + 1];
+    const dx = (b.x - a.x) / 2;
+    return {
+      key: i,
+      d: `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`,
+      done: progressStore.isLevelCompleted(ALL_LEVELS[i].id)
+    };
+  });
+});
+
+// 每顆星球不同顏色
+function planetHue(index) {
+  return (210 + index * 37) % 360;
+}
+
+const selectedLevelId = ref(null);
+const selectedLevel = computed(() =>
+  ALL_LEVELS.find((l) => l.id === (selectedLevelId.value ?? nextPlayableLevel.value)) || null
+);
+
+function selectStation(id) {
+  soundManager.playClick();
+  selectedLevelId.value = id;
+}
+
+function stationClass(id) {
+  return {
+    'is-locked': !progressStore.isLevelUnlocked(id),
+    'is-completed': progressStore.isLevelCompleted(id),
+    'is-next': id === nextPlayableLevel.value,
+    'is-selected': selectedLevel.value?.id === id
+  };
 }
 
 const nextPlayableLevel = computed(() => {
@@ -543,6 +604,12 @@ function submitCheat() {
   font-weight: 800;
 }
 
+.predict-total {
+  margin-left: 0.6rem;
+  color: var(--text-purple);
+  font-weight: 700;
+}
+
 .level-stars {
   display: inline-flex;
   gap: 2px;
@@ -656,87 +723,182 @@ function submitCheat() {
   color: var(--text-muted);
 }
 
-.level-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1.25rem;
+/* 星際航線地圖 */
+.starmap {
+  position: relative;
+  height: 380px;
+  padding: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px) 0 0 / 120px 90px,
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.7) 0 1px, transparent 2px) 0 0 / 170px 130px,
+    linear-gradient(135deg, #1e1b4b 0%, #1e3a8a 55%, #0f766e 100%);
+  border: none;
 }
 
-.level-card {
+/* 航線與站點用同一套百分比座標：站點的 left / top 就是航線上的點 */
+.starmap-route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.route-seg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 4;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+}
+
+.route-seg.route-done {
+  stroke: #fbbf24;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.7));
+}
+
+/* 往上移半顆星球（32px），讓星球中心剛好落在航線上的點 */
+.station {
+  position: absolute;
+  transform: translate(-50%, -32px);
+  width: 128px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 220px;
-  cursor: pointer;
-  position: relative;
-  transition: all var(--transition-normal);
-}
-
-.level-unlocked:hover {
-  transform: translateY(-4px);
-  border-color: var(--primary-blue);
-  box-shadow: var(--shadow-elevated), var(--shadow-blue-glow);
-}
-
-.level-current {
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 2px var(--primary-blue-glow);
-}
-
-.level-completed {
-  border-left: 4px solid var(--success);
-}
-
-.level-locked {
-  opacity: 0.65;
-  background: #f8fafc;
-  cursor: not-allowed;
-}
-
-.level-card-top {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #ffffff;
+  font-family: var(--font-sans);
 }
 
-.level-number {
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
+.planet {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  background: radial-gradient(circle at 32% 28%, hsl(var(--planet-hue) 90% 78%), hsl(var(--planet-hue) 70% 45%) 60%, hsl(var(--planet-hue) 70% 25%));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset -6px -8px 14px rgba(0, 0, 0, 0.25);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.planet-num {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.station:hover .planet,
+.station.is-selected .planet {
+  transform: scale(1.12);
+}
+
+.station.is-selected .planet {
+  box-shadow: 0 0 0 4px #ffffff, 0 0 24px rgba(255, 255, 255, 0.7);
+}
+
+.station.is-completed .planet::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 3px solid #fbbf24;
+}
+
+.station.is-next .planet {
+  animation: planetPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes planetPulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 255, 255, 0.55); }
+  50% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 12px rgba(255, 255, 255, 0); }
+}
+
+.station.is-locked .planet {
+  background: radial-gradient(circle at 32% 28%, #94a3b8, #475569 60%, #1e293b);
+  color: #cbd5e1;
+}
+
+.station.is-locked .station-title {
+  opacity: 0.6;
+}
+
+.station-title {
+  font-size: 0.82rem;
   font-weight: 700;
-  color: var(--text-muted);
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-.level-card-body {
+.ship-marker {
+  position: absolute;
+  top: -30px;
+  font-size: 1.5rem;
+  animation: shipBob 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes shipBob {
+  0%, 100% { transform: translateY(0) rotate(-12deg); }
+  50% { transform: translateY(-5px) rotate(-12deg); }
+}
+
+.station-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.1rem 1.4rem;
+}
+
+.detail-main {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
 }
 
-.level-title {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
+.detail-eyebrow {
+  font-size: 0.8rem;
   font-weight: 700;
+  color: var(--primary-blue);
+}
+
+.detail-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
   color: var(--text-primary);
 }
 
-.level-concept {
-  font-size: 0.8rem;
-  color: var(--primary-blue);
-  font-weight: 600;
+.detail-goal {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
 }
 
-.level-desc {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-  margin-top: 0.25rem;
-}
-
-.level-tags {
+.detail-tags {
   display: flex;
-  gap: 0.4rem;
   flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.detail-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-shrink: 0;
 }
 
 .tag-pill {
@@ -748,22 +910,49 @@ function submitCheat() {
   border: 1px solid var(--border-subtle);
 }
 
-.level-card-footer {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-}
-
-.level-card-footer .btn {
-  width: 100%;
-}
-
 .locked-hint {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.76rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+/* 窄螢幕：航線改成直的清單 */
+@media (max-width: 760px) {
+  .starmap {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem 1rem;
+  }
+
+  .starmap-route {
+    display: none;
+  }
+
+  .starmap .station {
+    position: static;
+    transform: none;
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+
+  .ship-marker {
+    position: static;
+  }
+
+  .station-detail {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .detail-action {
+    align-items: stretch;
+  }
 }
 
 /* Modals */

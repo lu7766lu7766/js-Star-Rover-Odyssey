@@ -98,6 +98,9 @@
           <span class="track-strip-note">💡 通關時除了訓練場，程式還會自動在 3 條隱藏賽道測試，驗證邏輯是否「通用」！</span>
         </div>
       </div>
+
+      <!-- 通關後的創作模式：自己設計賽道、分享賽道碼 -->
+      <ParkourCreator :code="studentCode" />
     </div>
 
     <!-- Footer Controls -->
@@ -118,6 +121,7 @@ import { LEVEL_9_STARTER_CODE } from '../../levels/level-9.js';
 import { PARKOUR_COURSES } from '../../game/sim/parkour.js';
 import CodeEditor from '../editor/CodeEditor.vue';
 import RunFeedback from './RunFeedback.vue';
+import ParkourCreator from './ParkourCreator.vue';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
@@ -162,7 +166,7 @@ function resetDefaults() {
 }
 
 function runCodeExecution() {
-  levelStore.executeLevel({
+  levelStore.requestRun({
     code: studentCode.value
   });
 }

@@ -1,5 +1,45 @@
 <template>
   <div class="run-feedback">
+    <!-- 執行前先預測：讓學生在按下執行前讀一遍自己的程式 -->
+    <div v-if="levelStore.isPredicting" class="fb-card fb-predict">
+      <div class="fb-title">
+        <span aria-hidden="true">🔮</span>
+        <span>按下執行之前，先猜猜看！</span>
+      </div>
+      <p class="fb-text">從頭讀一遍你的程式，你覺得結果會是：</p>
+      <div class="predict-options">
+        <button
+          v-for="opt in PREDICTION_OPTIONS"
+          :key="opt.id"
+          class="predict-option"
+          @click="levelStore.submitPrediction(opt.id)"
+        >
+          <span aria-hidden="true">{{ opt.icon }}</span>
+          <span>{{ opt.label }}</span>
+        </button>
+      </div>
+      <div class="predict-footer">
+        <label class="predict-toggle">
+          <input
+            type="checkbox"
+            :checked="progressStore.predictEveryRun"
+            @change="progressStore.setPredictEveryRun($event.target.checked)"
+          />
+          <span>每次執行前都先預測</span>
+        </label>
+        <button class="predict-skip" @click="levelStore.submitPrediction(null)">跳過，直接執行</button>
+      </div>
+    </div>
+
+    <!-- 預測對答案 -->
+    <div v-if="prediction && !levelStore.isExecuting && !levelStore.isPredicting" class="predict-result" :class="prediction.correct ? 'is-correct' : 'is-wrong'">
+      <span aria-hidden="true">🔮</span>
+      <span>
+        你猜「{{ optionText(prediction.predicted, 'label') }}」，結果{{ optionText(prediction.actual, 'outcome') }}——
+        {{ prediction.correct ? '猜對了！你已經讀得懂自己的程式 🎯' : '猜錯也沒關係，想想看：結果哪裡跟你想的不一樣？' }}
+      </span>
+    </div>
+
     <!-- 執行中 -->
     <div v-if="levelStore.isExecuting" class="fb-card fb-running">
       <Loader2 :size="16" class="spin" />
@@ -82,10 +122,17 @@
 <script setup>
 import { computed } from 'vue';
 import { CheckCircle2, Lightbulb, Loader2, Star, Box, Terminal } from 'lucide-vue-next';
-import { useLevelStore } from '../../stores/levelStore.js';
+import { useLevelStore, PREDICTION_OPTIONS } from '../../stores/levelStore.js';
+import { useProgressStore } from '../../stores/progressStore.js';
 import { ERROR_DEX } from '../../utils/errorTranslator.js';
 
 const levelStore = useLevelStore();
+const progressStore = useProgressStore();
+
+const prediction = computed(() => levelStore.predictionResult);
+function optionText(id, field) {
+  return PREDICTION_OPTIONS.find((o) => o.id === id)?.[field] || id;
+}
 
 const result = computed(() => levelStore.lastRunResult);
 const info = computed(() => result.value?.errorInfo || null);
@@ -142,6 +189,87 @@ function typeName(type) {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.fb-predict {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+  color: #4c1d95;
+}
+
+.predict-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.predict-option {
+  flex: 1 1 140px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid #c4b5fd;
+  background: #ffffff;
+  color: #4c1d95;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.predict-option:hover {
+  background: #ede9fe;
+  border-color: #8b5cf6;
+}
+
+.predict-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+}
+
+.predict-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.predict-skip {
+  border: none;
+  background: none;
+  color: #6d28d9;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+.predict-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.predict-result.is-correct {
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+.predict-result.is-wrong {
+  background: var(--bg-panel-hover);
+  color: var(--text-secondary);
 }
 
 .fb-running {

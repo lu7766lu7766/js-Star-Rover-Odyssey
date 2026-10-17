@@ -156,6 +156,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { Compass, RotateCcw, AlertTriangle, ArrowRight, Lightbulb, Star, BookOpen, HelpCircle, X } from 'lucide-vue-next';
 import { SceneManager } from '../../game/core/SceneManager.js';
+import { setRoverHullName, applyHullName } from '../../game/models/ProceduralMeshes.js';
 import { Level1Scene } from '../../game/scenes/Level1Scene.js';
 import { Level2Scene } from '../../game/scenes/Level2Scene.js';
 import { Level3Scene } from '../../game/scenes/Level3Scene.js';
@@ -285,6 +286,8 @@ function createSceneInstance(id) {
 
 function loadLevelScene(id) {
   if (!sceneManager) return;
+  // 新場景裡的探測船要噴上學生取的船名
+  setRoverHullName(progressStore.roverName);
   const instance = createSceneInstance(id);
   sceneManager.switchGameScene(instance);
 }
@@ -400,6 +403,12 @@ watch(() => props.levelId, (newId, oldId) => {
     return;
   }
   loadLevelScene(newId);
+});
+
+// 第 1 關一取好名字，眼前這台探測船就換上新船名
+watch(() => progressStore.roverName, (name) => {
+  setRoverHullName(name);
+  applyHullName(sceneManager?.activeGameScene?.rover, name);
 });
 
 watch(() => props.isLowPerformance, (isLow) => {

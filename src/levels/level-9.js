@@ -43,6 +43,21 @@ export default {
     answer: 0,
     explain: '|| 是「或」：左右兩邊只要有一邊成立，整個條件就成立。'
   },
+  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
+  parsons: {
+    prompt: "寫一個函式：號誌是 'red' 或 'yellow' 時回傳 'stop'，其他回傳 'go'。",
+    solution: [
+      'function react(signal) {',
+      "  if (signal === 'red' || signal === 'yellow') {",
+      "    return 'stop';",
+      '  } else {',
+      "    return 'go';",
+      '  }',
+      '}'
+    ],
+    distractors: ["  if (signal = 'red') {"],
+    explain: '比較要用 ===（三個等號）；一個 = 是「指定」，會把 signal 改掉。|| 代表「或」。'
+  },
   concepts: ['else if 多分支', '字串比較 ===', '邏輯或 ||', '通用邏輯（換地圖也能過）'],
   description: `廢棄太空站的緊急撤離通道啟動了！太空探險家要穿過一段充滿陷阱的走廊，抵達終點的逃生艙。每一步探險家都會偵測「前方一格」的地形（ahead），你要寫出決策函式 decide(ahead)，回傳要做的動作：平地用 'run' 前進、缺口與低矮障礙要 'jump' 跳過、高空橫桿要 'slide' 滑壘通過。注意：每種地形只有一個正確動作，做錯就會摔倒！完成後用 runner.setAutoRun(decide) 註冊，探險家就會自動跑完整條賽道。但小心——系統還會把你的程式丟到 3 條沒公開的新賽道考驗，只會背「第幾步要跳」是過不了的，必須根據眼前的地形做決定！`,
   targetRequirements: [

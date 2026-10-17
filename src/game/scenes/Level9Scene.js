@@ -347,9 +347,36 @@ export class Level9Scene extends BaseGameScene {
     this.resetCamera();
   }
 
+  /**
+   * 換一條賽道（創作模式）；不傳 tiles 就換回訓練場 A。
+   * 舊的賽道與障礙物會先釋放掉再重建。
+   */
+  setCourse(tiles = null, id = 'A') {
+    const next = tiles ? { id, tiles } : PARKOUR_COURSES[0];
+    if (this.course.id === next.id && this.course.tiles.join() === next.tiles.join()) return;
+    for (const g of [this.trackGroup, this.obstaclesGroup]) {
+      if (!g) continue;
+      g.traverse((obj) => {
+        obj.geometry?.dispose();
+        if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+        else obj.material?.dispose();
+      });
+      this.group.remove(g);
+    }
+    this.finishPad = null;
+    this.course = next;
+    this.buildTrack();
+    this.reset();
+  }
+
   handleAction(actionType, payload = {}) {
     if (actionType === 'RESET_SCENE' || actionType === 'RESET_POSITION' || actionType === 'RESET') {
       this.reset();
+      return;
+    }
+
+    if (actionType === 'SET_COURSE') {
+      this.setCourse(payload.tiles || null, payload.courseId || 'A');
       return;
     }
 
@@ -360,7 +387,7 @@ export class Level9Scene extends BaseGameScene {
       const call = apiCalls.find((c) => c.api === 'runner.setAutoRun');
 
       const runs = call?.runs || [];
-      const courseRun = runs.find((r) => r.courseId === 'A');
+      const courseRun = runs.find((r) => r.courseId === this.course.id);
 
       if (courseRun && courseRun.frames && courseRun.frames.length > 0) {
         this.framesQueue = [...courseRun.frames];

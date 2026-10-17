@@ -97,7 +97,7 @@ function resetDefaults() {
 }
 
 function runCodeExecution() {
-  levelStore.executeLevel({
+  levelStore.requestRun({
     code: studentCode.value
   });
 }

@@ -34,6 +34,17 @@ let distance = count * speed;`,
     answer: 1,
     explain: '* 是乘法：8 × 3 = 24。變數可以拿來運算，算出的結果再存進另一個變數。'
   },
+  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
+  parsons: {
+    prompt: '算出位移 = 速度 × 時間，最後印出 24。',
+    solution: [
+      ['let speed = 4;', 'let time = 6;'],
+      'let distance = speed * time;',
+      'console.log(distance); // 24'
+    ],
+    distractors: ['let distance = speed + time;'],
+    explain: '要先有 speed 和 time，才能拿來相乘；* 是乘法，+ 會變成 4 + 6 = 10。'
+  },
   concepts: ['變數宣告 (let/const)', '函式傳參', '數值運算'],
   description: `探測船需要進行長途軌道轉移以抵達距離 24 單位的懸浮能源站！系統已預先配置好推進參數（初始燃料 300、每次消耗 30、推進次數 8、推力速度 3）。請運用這四個變數名稱進行四則運算，補齊下方「推進計算」中的空格（___）：依序算出推進總消耗 (totalBurn)、剩餘燃料 (remainingFuel) 與推進總位移 (distance)，並呼叫 rover.approachStation({ distance, speed, remainingFuel }) 讓探測船平穩安全著陸！`,
   targetRequirements: [

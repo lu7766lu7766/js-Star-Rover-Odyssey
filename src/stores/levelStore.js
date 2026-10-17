@@ -13,6 +13,7 @@ import { findUnfilledBlank } from '../utils/codeAnalysis.js';
 import { STUDENT_CODE_LINE_OFFSET } from '../sandbox/gameApi.js';
 import { instrumentForTrace } from '../utils/codeTracer.js';
 import { MAZE_STEP_SECONDS } from '../game/sim/maze.js';
+import { buildCustomCourse, isValidCustomMiddle, describeFailure, CUSTOM_COURSE_ID } from '../game/sim/parkour.js';
 import {
   translateError,
   formatTranslatedError,
@@ -73,6 +74,21 @@ export function buildTraceSchedule(steps, { actionMs = 0, intervalMs = TRACE_MAN
     i = j;
   }
   return times;
+}
+
+/** 執行前預測的三個選項（label：預測時的說法；outcome：對答案時描述實際結果） */
+export const PREDICTION_OPTIONS = Object.freeze([
+  { id: 'pass', icon: '✅', label: '會通關', outcome: '通關了' },
+  { id: 'logic', icon: '🧩', label: '跑得動，但結果不對', outcome: '跑得動但沒過關' },
+  { id: 'error', icon: '⚠️', label: '會出現錯誤訊息', outcome: '出現了錯誤訊息' }
+]);
+
+/** 執行結果歸類成預測選項：通關 / 程式能跑但沒過 / 出錯（含沒填空、全形符號、語法與執行錯誤） */
+export function classifyRunOutcome(result) {
+  if (!result) return null;
+  if (result.pass) return 'pass';
+  if (result.errorInfo?.type === 'logic') return 'logic';
+  return 'error';
 }
 
 /** 第 i 則提示（0 起算）需要失敗幾次才解鎖：0、2、3、4… */
@@ -154,6 +170,14 @@ export const useLevelStore = defineStore('level', {
     isHintModalOpen: false,
     // 窄螢幕時任務簡報抽屜是否打開
     isMissionDrawerOpen: false,
+    // 執行前預測：等待學生選擇時暫存要執行的內容
+    isPredicting: false,
+    pendingRun: null,
+    hasPredictedThisVisit: false,
+    // 這次執行的預測結果 { predicted, actual, correct }
+    predictionResult: null,
+    // 跑酷創作模式：自製賽道最近一次的結果 { finished, message, steps }
+    customCourseResult: null,
     // 本關失敗次數（換關歸零），用來漸進解鎖提示
     failCount: 0,
     // 最近一次執行的頂層變數快照（變數盒子）
@@ -289,6 +313,123 @@ export const useLevelStore = defineStore('level', {
       this.l6CodeApproved = false;
       this.l6ApprovedEval = null;
       this.l6ApprovedCode = '';
+      this.isPredicting = false;
+      this.pendingRun = null;
+      this.hasPredictedThisVisit = false;
+      this.predictionResult = null;
+      this.customCourseResult = null;
+    },
+
+    /**
+     * 跑酷創作模式：用學生目前的 decide 跑自己設計的賽道。
+     * 不算通關、不給星，只看規則是不是夠通用。
+     * @param {{ code: string, middle: string[] }} options middle：起點與終點之間的格子
+     */
+    async runCustomCourse({ code, middle }) {
+      if (this.isExecuting || !isValidCustomMiddle(middle)) return null;
+      const tiles = buildCustomCourse(middle);
+      this.isExecuting = true;
+      this.clearLogs();
+      this.customCourseResult = null;
+      try {
+        soundManager.playLaunch();
+      } catch (e) {}
+
+      const precheck = precheckCode(code);
+      if (precheck) {
+        this.reportFailure(precheck, { delay: 0 });
+        this.isExecuting = false;
+        return precheck;
+      }
+
+      const traced = instrumentForTrace(code);
+      const runRes = await sandboxRuntime.execute({
+        code: traced ? traced.code : code,
+        levelId: 9,
+        initialData: { customCourse: tiles },
+        onLog: (log) => {
+          this.appendLog({ type: log.type === 'error' ? 'error' : 'info', message: `console.${log.type}: ${log.args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}` });
+        },
+        onApiCall: () => {}
+      });
+      if (!runRes.success) {
+        this.setTrace(runRes.trace);
+        this.reportFailure(buildRuntimeError(runRes, code), { delay: 0 });
+        this.isExecuting = false;
+        return this.lastRunResult;
+      }
+      this.lastVariables = runRes.variables || [];
+      this.setTrace(runRes.trace);
+
+      const call = (runRes.apiCalls || []).find((c) => c.api === 'runner.setAutoRun');
+      const run = call?.runs?.find((r) => r.courseId === CUSTOM_COURSE_ID);
+      if (!run) {
+        this.customCourseResult = { finished: false, message: '沒有偵測到 runner.setAutoRun(decide)，記得在最後註冊你的函式。' };
+        this.isExecuting = false;
+        return this.customCourseResult;
+      }
+
+      if (this.sceneActionTrigger) {
+        this.sceneActionTrigger('SET_COURSE', { tiles, courseId: CUSTOM_COURSE_ID });
+        this.sceneActionTrigger('EXECUTE_START', { levelId: 9, payload: { apiCalls: runRes.apiCalls } });
+      }
+      const animDuration = Math.max(1200, run.frames.length * 450 + 250);
+      if (this.traceSteps.length > 0) {
+        const intervalMs = autoTraceInterval(animDuration, this.traceSteps.length);
+        this.playTrace({ intervalMs, maxMs: animDuration + 1000, fromStart: true, exitAtEnd: true });
+      }
+      await new Promise((resolve) => setTimeout(resolve, animDuration));
+
+      this.customCourseResult = run.finished
+        ? { finished: true, message: `完賽！你的規則跑完了整條 ${tiles.length} 格的自製賽道。` }
+        : { finished: false, message: describeFailure(run.fail, run.error) };
+      try {
+        if (run.finished) soundManager.playSuccess();
+        else soundManager.playError();
+      } catch (e) {}
+      this.isExecuting = false;
+      return this.customCourseResult;
+    },
+
+    /**
+     * 按下執行：每一關第一次執行前（或學生勾選「每次都預測」時）先停下來讓學生預測結果。
+     * 第 7 站（DOM）要等學生親手點擊才算通關，不做預測。
+     */
+    requestRun(payload) {
+      const progressStore = useProgressStore();
+      const wantsPrediction = typeof payload?.code === 'string'
+        && this.currentLevel.id !== 6
+        && (!this.hasPredictedThisVisit || progressStore.predictEveryRun);
+      if (wantsPrediction && !this.isExecuting) {
+        this.pendingRun = payload;
+        this.isPredicting = true;
+        return null;
+      }
+      this.predictionResult = null;
+      return this.executeLevel(payload);
+    },
+
+    /** 學生選好預測（或按跳過時 choice 為 null）→ 執行並對答案 */
+    async submitPrediction(choice) {
+      const payload = this.pendingRun;
+      this.isPredicting = false;
+      this.pendingRun = null;
+      this.hasPredictedThisVisit = true;
+      this.predictionResult = null;
+      if (!payload) return null;
+      const result = await this.executeLevel(payload);
+      if (choice && result && !result.busy) {
+        const actual = classifyRunOutcome(result);
+        const correct = actual === choice;
+        this.predictionResult = { predicted: choice, actual, correct };
+        useProgressStore().recordPrediction(correct);
+      }
+      return result;
+    },
+
+    cancelPrediction() {
+      this.isPredicting = false;
+      this.pendingRun = null;
     },
 
     /** 統一處理失敗：記錄、3D 失敗動畫、錯誤圖鑑、延遲顯示失敗提示 */
@@ -586,6 +727,8 @@ export const useLevelStore = defineStore('level', {
 
       // Notify 3D scene that execution has started
       if (this.sceneActionTrigger) {
+        // 跑酷關：剛玩過創作模式的話，先換回訓練場 A
+        if (currentLevel.id === 9) this.sceneActionTrigger('SET_COURSE', {});
         this.sceneActionTrigger('EXECUTE_START', { levelId: currentLevel.id, payload: tracePayload });
       }
 

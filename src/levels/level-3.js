@@ -38,6 +38,22 @@ export default {
     answer: 1,
     explain: '5 < 5 不成立（5 沒有小於 5），所以往下檢查 5 < 15，成立 → SLOW_DOWN。'
   },
+  // 暖身排排看：跟本關觀念相同、但不是本關答案的小題目
+  parsons: {
+    prompt: '燃料少於 10 要「緊急補給」，少於 50 要「注意油量」，其他是「油量充足」。',
+    solution: [
+      'let fuel = 30;',
+      'if (fuel < 10) {',
+      "  console.log('緊急補給');",
+      '} else if (fuel < 50) {',
+      "  console.log('注意油量');",
+      '} else {',
+      "  console.log('油量充足');",
+      '}'
+    ],
+    distractors: ['} else (fuel < 50) {'],
+    explain: '條件從最嚴格的開始檢查；else 後面要接新的條件時，一定要寫成 else if。'
+  },
   concepts: ['條件判斷', '邏輯比較 (<, <=, >)', '分支決策'],
   description: `前方進入密集小行星亂石流！雷達感測器會持續回傳與前方隕石的「即時距離」。請為探測船的自動導航系統設定條件邏輯，根據距離做出正確的安全決策：極度接近時緊急煞停、近距離時減速觀察、遠距離時全速巡航。`,
   targetRequirements: [

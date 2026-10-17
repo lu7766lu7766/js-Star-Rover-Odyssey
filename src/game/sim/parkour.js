@@ -80,6 +80,48 @@ export const PARKOUR_COURSES = Object.freeze([
   }
 ]);
 
+/** 創作模式：自製賽道中間最多幾格、最少幾格（不含起點與終點） */
+export const CUSTOM_COURSE_LIMITS = Object.freeze({ min: 3, max: 18 });
+export const CUSTOM_COURSE_ID = 'CUSTOM';
+
+/** 賽道碼裡每種地形的代號（起點與終點固定，不必寫進碼） */
+const TILE_CODE = Object.freeze({ [TILE.GROUND]: 'R', [TILE.GAP]: 'G', [TILE.LOW]: 'L', [TILE.HIGH]: 'H' });
+const CODE_TILE = Object.freeze(Object.fromEntries(Object.entries(TILE_CODE).map(([tile, c]) => [c, tile])));
+const COURSE_CODE_PREFIX = 'PK-';
+
+/** 中間格子是否都是合法地形、長度在範圍內 */
+export function isValidCustomMiddle(middle) {
+  return Array.isArray(middle)
+    && middle.length >= CUSTOM_COURSE_LIMITS.min
+    && middle.length <= CUSTOM_COURSE_LIMITS.max
+    && middle.every((tile) => tile in TILE_CODE);
+}
+
+/** 中間格子 → 完整賽道（補上起點平地與終點） */
+export function buildCustomCourse(middle) {
+  return [TILE.GROUND, ...middle, TILE.FINISH];
+}
+
+/** 完整賽道是否可以拿來跑（Worker 收到的資料要再驗一次） */
+export function isValidCustomCourse(tiles) {
+  return Array.isArray(tiles)
+    && tiles[0] === TILE.GROUND
+    && tiles[tiles.length - 1] === TILE.FINISH
+    && isValidCustomMiddle(tiles.slice(1, -1));
+}
+
+/** 中間格子 → 賽道碼，例如 PK-RGRLRH */
+export function encodeCourseCode(middle) {
+  return COURSE_CODE_PREFIX + middle.map((tile) => TILE_CODE[tile]).join('');
+}
+
+/** 賽道碼 → 中間格子；格式不對回傳 null */
+export function decodeCourseCode(code) {
+  const raw = String(code || '').trim().toUpperCase().replace(/^PK-?/, '');
+  const middle = [...raw].map((c) => CODE_TILE[c]);
+  return middle.every(Boolean) && isValidCustomMiddle(middle) ? middle : null;
+}
+
 export function getCourse(id) {
   return PARKOUR_COURSES.find((c) => c.id === id) || null;
 }

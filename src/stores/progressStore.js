@@ -44,6 +44,14 @@ export const useProgressStore = defineStore('progress', {
       roverName: loaded.roverName || '',
       // 錯誤圖鑑 { 錯誤類型: 遇到次數 }
       errorDex: loaded.errorDex || {},
+      // 跑酷創作模式：學生設計的賽道（起點與終點之間的格子）
+      parkourCourse: loaded.parkourCourse || [],
+      // 暖身排排看完成的關卡 { 關卡 id: true }
+      parsonsDone: loaded.parsonsDone || {},
+      // 執行前預測的統計 { total, correct }
+      predictionStats: loaded.predictionStats || { total: 0, correct: 0 },
+      // 勾選後每次執行前都要預測（預設只有每關第一次）
+      predictEveryRun: !!loaded.predictEveryRun,
       isDeveloperMode: false,
       isSoundMuted: localStorage.getItem('star_rover_sound_muted') === 'true',
       // 教室電腦老舊，預設開啟低效能模式（除非使用者明確關過）
@@ -67,6 +75,7 @@ export const useProgressStore = defineStore('progress', {
       return Math.round((state.completedLevels.length / ALL_LEVELS.length) * 100);
     },
     getLevelStars: (state) => (levelId) => state.levelStars[levelId] || 0,
+    isParsonsDone: (state) => (levelId) => !!state.parsonsDone[levelId],
     totalStars: (state) => Object.values(state.levelStars).reduce((sum, n) => sum + n, 0),
     maxStars: () => ALL_LEVELS.length * 3
   },
@@ -128,6 +137,28 @@ export const useProgressStore = defineStore('progress', {
       }
     },
 
+    setParkourCourse(middle) {
+      this.parkourCourse = [...middle];
+      this.persist();
+    },
+
+    markParsonsDone(levelId) {
+      if (this.parsonsDone[levelId]) return;
+      this.parsonsDone[levelId] = true;
+      this.persist();
+    },
+
+    recordPrediction(correct) {
+      this.predictionStats.total++;
+      if (correct) this.predictionStats.correct++;
+      this.persist();
+    },
+
+    setPredictEveryRun(value) {
+      this.predictEveryRun = !!value;
+      this.persist();
+    },
+
     recordError(type) {
       if (!type) return;
       this.errorDex[type] = (this.errorDex[type] || 0) + 1;
@@ -173,7 +204,11 @@ export const useProgressStore = defineStore('progress', {
         savedOperations: this.savedOperations,
         levelStars: this.levelStars,
         roverName: this.roverName,
-        errorDex: this.errorDex
+        errorDex: this.errorDex,
+        predictionStats: this.predictionStats,
+        predictEveryRun: this.predictEveryRun,
+        parsonsDone: this.parsonsDone,
+        parkourCourse: this.parkourCourse
       });
     },
 
@@ -187,7 +222,11 @@ export const useProgressStore = defineStore('progress', {
         savedOperations: this.savedOperations,
         levelStars: this.levelStars,
         roverName: this.roverName,
-        errorDex: this.errorDex
+        errorDex: this.errorDex,
+        predictionStats: this.predictionStats,
+        predictEveryRun: this.predictEveryRun,
+        parsonsDone: this.parsonsDone,
+        parkourCourse: this.parkourCourse
       });
     },
 
@@ -203,6 +242,10 @@ export const useProgressStore = defineStore('progress', {
       this.levelStars = result.data.levelStars || {};
       this.roverName = result.data.roverName || '';
       this.errorDex = result.data.errorDex || {};
+      this.predictionStats = result.data.predictionStats || { total: 0, correct: 0 };
+      this.predictEveryRun = !!result.data.predictEveryRun;
+      this.parsonsDone = result.data.parsonsDone || {};
+      this.parkourCourse = result.data.parkourCourse || [];
       // Imported save may carry a level view; only honor it when unlocked.
       this.currentView = result.data.currentView === 'level' && this.unlockedLevels.includes(this.currentLevelId)
         ? 'level'
