@@ -76,21 +76,6 @@ export function buildTraceSchedule(steps, { actionMs = 0, intervalMs = TRACE_MAN
   return times;
 }
 
-/** 執行前預測的三個選項（label：預測時的說法；outcome：對答案時描述實際結果） */
-export const PREDICTION_OPTIONS = Object.freeze([
-  { id: 'pass', icon: '✅', label: '會通關', outcome: '通關了' },
-  { id: 'logic', icon: '🧩', label: '跑得動，但結果不對', outcome: '跑得動但沒過關' },
-  { id: 'error', icon: '⚠️', label: '會出現錯誤訊息', outcome: '出現了錯誤訊息' }
-]);
-
-/** 執行結果歸類成預測選項：通關 / 程式能跑但沒過 / 出錯（含沒填空、全形符號、語法與執行錯誤） */
-export function classifyRunOutcome(result) {
-  if (!result) return null;
-  if (result.pass) return 'pass';
-  if (result.errorInfo?.type === 'logic') return 'logic';
-  return 'error';
-}
-
 /** 第 i 則提示（0 起算）需要失敗幾次才解鎖：0、2、3、4… */
 export function hintUnlockFails(i) {
   return i === 0 ? 0 : i + 1;
@@ -170,12 +155,6 @@ export const useLevelStore = defineStore('level', {
     isHintModalOpen: false,
     // 窄螢幕時任務簡報抽屜是否打開
     isMissionDrawerOpen: false,
-    // 執行前預測：等待學生選擇時暫存要執行的內容
-    isPredicting: false,
-    pendingRun: null,
-    hasPredictedThisVisit: false,
-    // 這次執行的預測結果 { predicted, actual, correct }
-    predictionResult: null,
     // 跑酷創作模式：自製賽道最近一次的結果 { finished, message, steps }
     customCourseResult: null,
     // 本關失敗次數（換關歸零），用來漸進解鎖提示
@@ -313,10 +292,6 @@ export const useLevelStore = defineStore('level', {
       this.l6CodeApproved = false;
       this.l6ApprovedEval = null;
       this.l6ApprovedCode = '';
-      this.isPredicting = false;
-      this.pendingRun = null;
-      this.hasPredictedThisVisit = false;
-      this.predictionResult = null;
       this.customCourseResult = null;
     },
 
@@ -391,45 +366,9 @@ export const useLevelStore = defineStore('level', {
       return this.customCourseResult;
     },
 
-    /**
-     * 按下執行：每一關第一次執行前（或學生勾選「每次都預測」時）先停下來讓學生預測結果。
-     * 第 7 站（DOM）要等學生親手點擊才算通關，不做預測。
-     */
+    /** 按下執行（各控制面板共用的入口） */
     requestRun(payload) {
-      const progressStore = useProgressStore();
-      const wantsPrediction = typeof payload?.code === 'string'
-        && this.currentLevel.id !== 6
-        && (!this.hasPredictedThisVisit || progressStore.predictEveryRun);
-      if (wantsPrediction && !this.isExecuting) {
-        this.pendingRun = payload;
-        this.isPredicting = true;
-        return null;
-      }
-      this.predictionResult = null;
       return this.executeLevel(payload);
-    },
-
-    /** 學生選好預測（或按跳過時 choice 為 null）→ 執行並對答案 */
-    async submitPrediction(choice) {
-      const payload = this.pendingRun;
-      this.isPredicting = false;
-      this.pendingRun = null;
-      this.hasPredictedThisVisit = true;
-      this.predictionResult = null;
-      if (!payload) return null;
-      const result = await this.executeLevel(payload);
-      if (choice && result && !result.busy) {
-        const actual = classifyRunOutcome(result);
-        const correct = actual === choice;
-        this.predictionResult = { predicted: choice, actual, correct };
-        useProgressStore().recordPrediction(correct);
-      }
-      return result;
-    },
-
-    cancelPrediction() {
-      this.isPredicting = false;
-      this.pendingRun = null;
     },
 
     /** 統一處理失敗：記錄、3D 失敗動畫、錯誤圖鑑、延遲顯示失敗提示 */

@@ -75,9 +75,6 @@
             <span class="progress-value">
               {{ progressStore.completedLevels.length }} / {{ ALL_LEVELS.length }} 站已通關
               <span class="star-total">★ {{ progressStore.totalStars }} / {{ progressStore.maxStars }}</span>
-              <span v-if="progressStore.predictionStats.total > 0" class="predict-total" title="執行前預測結果，猜對的次數">
-                🔮 預測準確 {{ progressStore.predictionStats.correct }} / {{ progressStore.predictionStats.total }}
-              </span>
             </span>
           </div>
           <div class="progress-track">
@@ -602,12 +599,6 @@ function submitCheat() {
   margin-left: 0.6rem;
   color: var(--warning-dark);
   font-weight: 800;
-}
-
-.predict-total {
-  margin-left: 0.6rem;
-  color: var(--text-purple);
-  font-weight: 700;
 }
 
 .level-stars {

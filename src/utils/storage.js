@@ -20,18 +20,9 @@ export const DEFAULT_SAVE_DATA = {
   levelStars: {},
   roverName: '',
   errorDex: {},
-  predictionStats: { total: 0, correct: 0 },
-  predictEveryRun: false,
   parkourCourse: [],
   timestamp: Date.now()
 };
-
-/** 預測統計：{ total, correct }，correct 不可大於 total */
-function sanitizePredictionStats(raw) {
-  const total = Math.max(0, Math.floor(Number(raw?.total) || 0));
-  const correct = Math.max(0, Math.min(total, Math.floor(Number(raw?.correct) || 0)));
-  return { total, correct };
-}
 
 /** 星數：{ 關卡 id: 1~3 }，只保留合法關卡 */
 function sanitizeLevelStars(raw) {
@@ -103,8 +94,6 @@ export function validateSaveData(data) {
       levelStars: sanitizeLevelStars(data.levelStars),
       roverName: typeof data.roverName === 'string' ? data.roverName.trim().slice(0, 20) : '',
       errorDex: sanitizeErrorDex(data.errorDex),
-      predictionStats: sanitizePredictionStats(data.predictionStats),
-      predictEveryRun: data.predictEveryRun === true,
       parkourCourse: isValidCustomMiddle(data.parkourCourse) ? [...data.parkourCourse] : [],
       timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now()
     }

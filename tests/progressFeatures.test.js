@@ -133,52 +133,23 @@ describe('通關碼', () => {
   });
 });
 
-describe('執行前預測', () => {
+describe('按下執行', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     globalThis.localStorage.clear();
     vi.useFakeTimers();
   });
 
-  it('每關第一次執行先停下來預測，之後直接執行', async () => {
+  it('直接執行並回傳結果，不會先停下來', async () => {
     const levelStore = useLevelStore();
     const progress = useProgressStore();
     progress.goToLevel(1);
     levelStore.enterLevel();
-    const payload = { code: 'let roverName = ___;' };
-    expect(levelStore.requestRun(payload)).toBe(null);
-    expect(levelStore.isPredicting).toBe(true);
-
-    const promise = levelStore.submitPrediction('error');
+    const promise = levelStore.requestRun({ code: 'let roverName = ___;' });
+    expect(promise).not.toBe(null);
     await vi.runAllTimersAsync();
-    await promise;
-    expect(levelStore.predictionResult).toEqual({ predicted: 'error', actual: 'error', correct: true });
-    expect(progress.predictionStats).toEqual({ total: 1, correct: 1 });
-
-    // 同一次造訪的第二次執行不再詢問
-    const second = levelStore.requestRun(payload);
-    expect(levelStore.isPredicting).toBe(false);
-    await vi.runAllTimersAsync();
-    await second;
-  });
-
-  it('勾選「每次都預測」後每次都會詢問；跳過不計入統計', async () => {
-    const levelStore = useLevelStore();
-    const progress = useProgressStore();
-    progress.goToLevel(1);
-    progress.setPredictEveryRun(true);
-    levelStore.hasPredictedThisVisit = true;
-    levelStore.requestRun({ code: 'let a = ___;' });
-    expect(levelStore.isPredicting).toBe(true);
-    const promise = levelStore.submitPrediction(null);
-    await vi.runAllTimersAsync();
-    await promise;
-    expect(levelStore.predictionResult).toBe(null);
-    expect(progress.predictionStats.total).toBe(0);
-  });
-
-  it('預測統計存檔時會被校正', () => {
-    const res = validateSaveData({ ...DEFAULT_SAVE_DATA, predictionStats: { total: 3, correct: 9 } });
-    expect(res.data.predictionStats).toEqual({ total: 3, correct: 3 });
+    const result = await promise;
+    expect(result.pass).toBe(false);
+    expect(levelStore.lastRunResult).toEqual(result);
   });
 });
