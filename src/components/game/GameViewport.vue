@@ -1,14 +1,14 @@
 <template>
   <div class="game-viewport-container">
-    <!-- Level 6: 2D Webpage Mode (取代 3D，專注 DOM 體驗) -->
-    <Level6DomViewport v-if="levelId === 6" />
+    <!-- 3D Canvas Mount Point -->
+    <div class="canvas-wrapper" ref="canvasContainer"></div>
+    <div class="viewport-vignette" aria-hidden="true"></div>
 
-    <!-- 3D Canvas Mount Point (Level 6 以外) -->
-    <div v-else class="canvas-wrapper" ref="canvasContainer"></div>
-    <div v-if="levelId !== 6" class="viewport-vignette" aria-hidden="true"></div>
+    <!-- Level 6：真的 DOM 網頁做成控制終端，疊在 3D 氣閘下方；3D 只反映網頁狀態 -->
+    <Level6DomViewport v-if="levelId === 6" ref="l6Terminal" />
 
     <!-- 左上角：學生在第 1 關取的船名，一路跟著每一關 -->
-    <div v-if="levelId !== 6" class="viewport-telemetry-banner">
+    <div class="viewport-telemetry-banner">
       <div class="telemetry-item">
         <span class="beacon-dot"></span>
         <span class="telemetry-label">{{ shipLabel }}</span>
@@ -19,8 +19,8 @@
       </div>
     </div>
 
-    <!-- HUD Overlay Controls (Top Right, 3D only) -->
-    <div v-if="levelId !== 6" class="viewport-hud-controls">
+    <!-- HUD Overlay Controls (Top Right) -->
+    <div class="viewport-hud-controls">
       <button class="btn btn-sm hud-btn" @click="resetCamera" title="重設 3D 觀察視角">
         <Compass :size="14" class="icon-hud" />
         <span>視角復位</span>
@@ -37,8 +37,8 @@
       :drones="droneFleetData"
     />
 
-    <!-- WebGL Context Lost Warning (3D only) -->
-    <div v-if="levelId !== 6 && contextLost" class="context-lost-banner">
+    <!-- WebGL Context Lost Warning -->
+    <div v-if="contextLost" class="context-lost-banner">
       <AlertTriangle :size="22" class="text-danger" />
       <div class="banner-text">
         <strong>3D 畫面暫時中斷了</strong>
@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue';
 import { Compass, RotateCcw, AlertTriangle, ArrowRight, Lightbulb, Star, BookOpen, HelpCircle, X } from 'lucide-vue-next';
 import { SceneManager } from '../../game/core/SceneManager.js';
 import { setRoverHullName, applyHullName } from '../../game/models/ProceduralMeshes.js';
@@ -168,6 +168,7 @@ import { Level8Scene } from '../../game/scenes/Level8Scene.js';
 import { Level9Scene } from '../../game/scenes/Level9Scene.js';
 import { getNextLevelId, getLevelById, getLevelNumber } from '../../levels/index.js';
 import { useProgressStore } from '../../stores/progressStore.js';
+import { useDomLabStore } from '../../stores/domLabStore.js';
 import { ERROR_DEX } from '../../utils/errorTranslator.js';
 import { makePassCode } from '../../utils/passCode.js';
 import Level6DomViewport from './Level6DomViewport.vue';
@@ -203,7 +204,9 @@ const props = defineProps({
 const emit = defineEmits(['mock-dom-click', 'next-level', 'close-success', 'close-fail', 'restore-vehicle', 'open-hint', 'register-trigger']);
 
 const canvasContainer = ref(null);
+const l6Terminal = ref(null);
 let sceneManager = null;
+let terminalObserver = null;
 const contextLost = ref(false);
 
 const showSuccessModal = computed(() => props.isSuccessModalOpen);
@@ -285,15 +288,73 @@ function createSceneInstance(id) {
 }
 
 function loadLevelScene(id) {
-  if (!sceneManager) return;
+  // WebGL 建立失敗時沒有鏡頭控制器，不載場景（第 6 關的網頁終端照樣能玩）
+  if (!sceneManager?.cameraController) return;
   // 新場景裡的探測船要噴上學生取的船名
   setRoverHullName(progressStore.roverName);
   const instance = createSceneInstance(id);
   sceneManager.switchGameScene(instance);
+  if (id === 6) syncDomToScene(true);
+}
+
+// Level 6：網頁（domLabStore）是本尊，3D 氣閘照著它的狀態動
+const domLab = useDomLabStore();
+
+function sendToL6Scene(actionType, payload = {}) {
+  if (props.levelId !== 6) return;
+  sceneManager?.activeGameScene?.handleAction(actionType, payload);
+}
+
+function syncDomToScene(instant = false) {
+  sendToL6Scene('DOM_STATE', { disarmed: domLab.disarmed, airlockOpen: domLab.airlockOpen, instant });
+}
+
+watch(() => [domLab.disarmed, domLab.airlockOpen], () => syncDomToScene());
+
+// 一次點擊會連續 push 好幾筆（event → dom），watcher 跑的時候最新那筆已經不是 event，
+// 所以要把上次看過之後新增的每一筆都掃過
+let lastSeenLogId = null;
+watch(() => domLab.eventLog[0]?.id, () => {
+  const fresh = [];
+  for (const log of domLab.eventLog) {
+    if (log.id === lastSeenLogId) break;
+    fresh.push(log);
+  }
+  lastSeenLogId = domLab.eventLog[0]?.id ?? null;
+  if (fresh.some((log) => log.kind === 'error')) {
+    sendToL6Scene('DOM_DENIED');
+  } else if (fresh.some((log) => log.kind === 'event')) {
+    sendToL6Scene('DOM_EVENT');
+  }
+});
+
+// 終端機蓋住畫面下半部：告訴 3D 把構圖中心移到露出來的上半部
+function updateTerminalInset() {
+  if (!sceneManager || !canvasContainer.value) return;
+  const el = l6Terminal.value?.$el;
+  if (props.levelId !== 6 || !el) {
+    sceneManager.setBottomInset(0);
+    return;
+  }
+  const containerRect = canvasContainer.value.getBoundingClientRect();
+  const terminalRect = el.getBoundingClientRect();
+  sceneManager.setBottomInset(containerRect.bottom - terminalRect.top);
+}
+
+function observeTerminal() {
+  terminalObserver?.disconnect();
+  terminalObserver = null;
+  const el = l6Terminal.value?.$el;
+  if (el && typeof ResizeObserver !== 'undefined') {
+    terminalObserver = new ResizeObserver(updateTerminalInset);
+    terminalObserver.observe(el);
+  }
+  updateTerminalInset();
 }
 
 function resetCamera() {
-  if (sceneManager) {
+  if (sceneManager?.cameraController) {
+    sendToL6Scene('CAMERA_RESET');
     sceneManager.cameraController.reset();
   }
 }
@@ -357,11 +418,6 @@ function confettiEmoji(n) {
 }
 
 function init3D() {
-  // Level 6 改用 2D 網頁模式，不初始化 WebGL，改註冊空觸發器讓 executeLevel 照常運作
-  if (props.levelId === 6) {
-    emit('register-trigger', () => {});
-    return;
-  }
   if (!canvasContainer.value) return;
   sceneManager = new SceneManager(canvasContainer.value);
 
@@ -371,8 +427,11 @@ function init3D() {
   sceneManager.onContextRestoredCallback = () => {
     contextLost.value = false;
   };
+  // 建構時 WebGL 就失敗：callback 當時還沒掛上，這裡補顯示提示
+  if (!sceneManager.renderer) contextLost.value = true;
 
   loadLevelScene(props.levelId);
+  observeTerminal();
 
   // Register scene action trigger so levelStore can drive 3D animations
   emit('register-trigger', (actionType, payload) => {
@@ -386,23 +445,14 @@ onMounted(() => {
   init3D();
 });
 
-watch(() => props.levelId, (newId, oldId) => {
-  // 切換進出 Level 6 (2D) 時重建 / 釋放 3D 資源
-  if (newId === 6) {
-    if (sceneManager) {
-      sceneManager.dispose();
-      sceneManager = null;
-    }
-    emit('register-trigger', () => {});
-    return;
-  }
-  if (oldId === 6) {
-    // 從 2D 切回 3D：等待 canvas 重新掛載後再初始化
-    contextLost.value = false;
-    setTimeout(() => init3D(), 50);
-    return;
-  }
+watch(() => props.levelId, (newId) => {
   loadLevelScene(newId);
+  // 終端機在 Level 6 才會掛載，等 DOM 更新後再量；
+  // 網頁也是那時才讀進存檔，3D 要直接跳到存檔狀態，不重播解鎖 / 開門動畫
+  nextTick(() => {
+    observeTerminal();
+    if (newId === 6) syncDomToScene(true);
+  });
 });
 
 // 第 1 關一取好名字，眼前這台探測船就換上新船名
@@ -424,6 +474,8 @@ watch(() => props.lastRunResult, (res) => {
 });
 
 onBeforeUnmount(() => {
+  terminalObserver?.disconnect();
+  terminalObserver = null;
   if (sceneManager) {
     sceneManager.dispose();
     sceneManager = null;

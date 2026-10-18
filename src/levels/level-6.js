@@ -4,7 +4,7 @@
  */
 
 export const LEVEL_6_STARTER_CODE = `// 太空艙控制中心
-// 任務細節見左側任務簡報，元素 id 與正確字串見上方 2D 網頁與右側 DevTools
+// 任務細節見左側任務簡報，元素 id 與正確字串見左側終端網頁與它的 DevTools
 
 // 選取元素
 const disarmButton = document.querySelector(___);   // @type {Element} 解除警報按鈕
@@ -33,7 +33,7 @@ airlockButton.addEventListener(___, () => {   // @type {"click" | "dblclick" | "
 export default {
   id: 6,
   title: '太空艙控制中心',
-  subtitle: '2D 網頁修復任務 · 事件與 DOM',
+  subtitle: '終端網頁修復任務 · 事件與 DOM',
   // 一句話任務目標（任務欄最上方）
   goal: '幫網頁按鈕接上事件：先解除警報，才能打開氣閘門',
   conceptTitle: '使用者與網頁的橋樑：事件驅動',
@@ -48,9 +48,9 @@ export default {
     explain: '接電線的當下不會執行；要等使用者真的點擊（click），瀏覽器才會呼叫這個回呼函式。'
   },
   concepts: ['DOM 元素選擇', '事件監聽器 (addEventListener)', 'textContent / style 即時改寫'],
-  description: `太空艙的控制「網頁」當機了！上方 2D 視窗就是一整個故障中的儀表板網頁：警報燈狂閃、氣閘門鎖死。2D 儀表板上有 4 個元素：解除警報按鈕、氣閘按鈕、狀態燈、氣閘艙門，請照著任務需求將程式接起來。`,
+  description: `太空艙的控制「網頁」當機了！左側畫面下方的控制終端就是一整個故障中的儀表板網頁，上方 3D 氣閘會照著它的狀態動：警報燈狂閃、氣閘門鎖死。儀表板上有 4 個元素：解除警報按鈕、氣閘按鈕、狀態燈、氣閘艙門，請照著任務需求將程式接起來。`,
   targetRequirements: [
-    '用 querySelector 選取 4 個元素（順序不可調換：第 1 行解除警報按鈕、第 2 行氣閘按鈕、第 3 行狀態燈 #status-indicator、第 4 行艙門 #airlock-door，id 寫在 2D 網頁各元素上方，選擇器為字串加引號、id 前面加 #）',
+    '用 querySelector 選取 4 個元素（順序不可調換：第 1 行解除警報按鈕、第 2 行氣閘按鈕、第 3 行狀態燈 #status-indicator、第 4 行艙門 #airlock-door，id 可在終端網頁 DevTools 的 DOM TREE 找到，選擇器為字串加引號、id 前面加 #）',
     '為兩顆按鈕接回 "click" 事件',
     '解除警報回呼：把 isAlarmActive 改為 false。並改寫狀態燈文字為：警報系統關閉。顏色改為green。',
     '氣閘回呼：先用 if 守衛判斷「警報已解除」才放行，把艙門加上滑開用的 CSS class：open。並改寫門文字：氣閘已開啟。',
@@ -67,10 +67,10 @@ export default {
     { id: 'EMERGENCY_LOCK', label: '全艙緊急封鎖 (emergencyLock)' }
   ],
   hints: [
-    '提示 1【DOM 與事件】：addEventListener(事件, 回呼) 只是「先幫按鈕接好電線」。querySelector 則是用 CSS 選擇器把元素選出來，id 選擇器寫法是加引號、# 開頭，id 本尊寫在 2D 網頁每個元素上方的 <code> 標籤裡。',
+    '提示 1【DOM 與事件】：addEventListener(事件, 回呼) 只是「先幫按鈕接好電線」。querySelector 則是用 CSS 選擇器把元素選出來，id 選擇器寫法是加引號、# 開頭，id 本尊可以在終端網頁右側 DevTools 的 DOM TREE 裡找到。',
     '提示 2【動手實驗】：故意把事件改成 mouseover 或 dblclick 再執行，看看報錯怎麼說。日常網頁按鈕最直覺的就是 click，驗證只認 click。',
     '提示 3【順序有意義】：開門的 JS 裡有 if (!isAlarmActive) 守衛判斷。警報沒解除（變數仍為 true）就開門會被擋下，先解除警報讓變數變 false 再開門才是正確流程。',
-    '提示 4【字串去哪找】：狀態燈文字、燈號顏色、艙門 class 名都不用背——2D 網頁上都寫著：狀態卡顯示正常時的文字與顏色，氣閘按鈕下方小字會顯示「classList 已加 …」的提示，右側 DevTools 的 DOM TREE 也會即時顯示艙門目前的 class。照著填進 ___ 即可。'
+    '提示 4【字串去哪找】：狀態燈文字、燈號顏色、艙門 class 名都不用背——終端網頁上都寫著：狀態卡顯示正常時的文字與顏色，氣閘按鈕下方小字會顯示「classList 已加 …」的提示，右側 DevTools 的 DOM TREE 也會即時顯示艙門目前的 class。照著填進 ___ 即可。'
   ],
   jsCodeExample: `// 💡 JavaScript 對照：你在下方接的線，就是這段程式碼
 const disarmButton = document.querySelector('#disarm-btn');
@@ -96,7 +96,7 @@ airlockButton.addEventListener('click', () => {
     alert('警報中，安全協議禁止開門！');
   }
 });`,
-  conceptExplanation: `網頁就是一棵 DOM 樹，每個按鈕、文字、艙門都是一個節點。addEventListener('click', callback) 是「幫節點接電線」：先接好，之後使用者一點擊，瀏覽器就自動跑回呼。本關上方就是一個真的 2D 網頁，你親手接線、親手點擊，親眼看到 textContent、style、class 被改寫——這就是前端工程師每天在做的事！`,
+  conceptExplanation: `網頁就是一棵 DOM 樹，每個按鈕、文字、艙門都是一個節點。addEventListener('click', callback) 是「幫節點接電線」：先接好，之後使用者一點擊，瀏覽器就自動跑回呼。本關的控制終端就是一個真的網頁，你親手接線、親手點擊，親眼看到 textContent、style、class 被改寫——這就是前端工程師每天在做的事！`,
   starterCode: LEVEL_6_STARTER_CODE,
   validate: (runResult) => {
     // 新鏈路：Worker 真跑接線＋模擬兩路點擊的快照
@@ -179,7 +179,7 @@ airlockButton.addEventListener('click', () => {
       return {
         pass: true,
         data: { disarmed: true, airlockOpen: true, stars, fromCode: true },
-        feedback: `2D 網頁修復成功！接線、點擊、改寫一次到位，警報解除、氣閘滑開，錯誤順序也被安全協議擋下！${suffix}`
+        feedback: `網頁修復成功！接線、點擊、改寫一次到位，警報解除、氣閘滑開，錯誤順序也被安全協議擋下！${suffix}`
       };
     }
 
@@ -189,7 +189,7 @@ airlockButton.addEventListener('click', () => {
     if (bindings.disarmEvent !== 'click' || bindings.disarmAction !== 'DISARM_ALARM') {
       return {
         pass: false,
-        error: '警報按鈕 (#disarm-btn) 的線接錯了！請接回 "click" 事件＋「解除安全警報」，再去 2D 網頁試試點擊 / 懸停的差別。'
+        error: '警報按鈕 (#disarm-btn) 的線接錯了！請接回 "click" 事件＋「解除安全警報」，再去終端網頁試試點擊 / 懸停的差別。'
       };
     }
 
@@ -203,21 +203,21 @@ airlockButton.addEventListener('click', () => {
     if (!disarmed) {
       return {
         pass: false,
-        error: '線接對了，但你還沒親手觸發事件！請到上方 2D 網頁點擊「解除警報」，看 #status-indicator 轉綠燈。'
+        error: '線接對了，但你還沒親手觸發事件！請到終端網頁點擊「解除警報」，看 #status-indicator 轉綠燈。'
       };
     }
 
     if (!airlockOpen) {
       return {
         pass: false,
-        error: '警報已解除，很棒！但還沒開門。請到上方 2D 網頁點擊「開啟氣閘」，看 #airlock-door 滑開後再提交。'
+        error: '警報已解除，很棒！但還沒開門。請到終端網頁點擊「開啟氣閘」，看 #airlock-door 滑開後再提交。'
       };
     }
 
     return {
       pass: true,
       data: { disarmed, airlockOpen, stars: 2, fromCode: false },
-      feedback: `2D 網頁修復成功！你親手接好 addEventListener、親手點擊觸發，#status-indicator 轉綠、#airlock-door 滑開——這就是 JS 操控 DOM 的完整流程！（2星：表單模式上限，切「寫碼」手寫接線拿 3 星）`
+      feedback: `網頁修復成功！你親手接好 addEventListener、親手點擊觸發，#status-indicator 轉綠、#airlock-door 滑開——這就是 JS 操控 DOM 的完整流程！（2星：表單模式上限，切「寫碼」手寫接線拿 3 星）`
     };
   }
 };

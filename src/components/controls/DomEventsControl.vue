@@ -27,10 +27,10 @@
           <CodeEditor v-model="studentCode" :level-id="6" @reset="resetCode" @run="runCodeExecution" />
         </div>
         <div class="code-mode-note">
-          <span>送出只檢查程式接線（事件＋回呼＋守衛判斷），不自動開門。通過後請到上方 2D 網頁親手解除警報＋開啟氣閘，完成後自動過關。</span>
+          <span>送出只檢查程式接線（事件＋回呼＋守衛判斷），不自動開門。通過後請到終端網頁親手解除警報＋開啟氣閘，完成後自動過關。</span>
         </div>
         <div v-if="levelStore.l6CodeApproved" class="code-mode-approved">
-          <span>✅ 程式送審通過！請到上方 2D 網頁親手點擊完成任務（改程式需重新送出）。</span>
+          <span>✅ 程式送審通過！請到終端網頁親手點擊完成任務（改程式需重新送出）。</span>
         </div>
         <div class="code-mode-actions">
           <button
@@ -49,7 +49,7 @@
     <!-- Execute Bar -->
     <div class="deck-footer">
       <div class="footer-hint">
-        送審模式：先送出檢查程式，通過後到 2D 網頁親手操作過關
+        送審模式：先送出檢查程式，通過後到終端網頁親手操作過關
       </div>
     </div>
   </div>

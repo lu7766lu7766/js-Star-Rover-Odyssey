@@ -785,61 +785,203 @@ export function createScannerDish() {
 }
 
 /**
- * Airlock doors with panel detail
+ * 氣閘隔艙牆：牆上開一個真的門洞，兩片艙門會滑進牆裡；門縫有鎖栓、門頂是狀態燈、兩側有警示旋轉燈
  */
-export function createAirlockDoors() {
+export function createAirlockBulkhead() {
   const group = new THREE.Group();
-  group.name = 'AirlockDoors';
+  group.name = 'AirlockBulkhead';
 
-  const frame = new THREE.Mesh(
-    new RoundedBoxGeometry(7.4, 5.0, 0.9, 2, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.3 })
-  );
-  frame.position.set(0, 2.5, 0);
-  group.add(frame);
+  const OPEN_W = 4.8;
+  const OPEN_H = 4.3;
+  const WALL_W = 24;
+  const WALL_H = 8.2;
+  const WALL_D = 0.9;
 
-  const opening = new THREE.Mesh(
-    new THREE.PlaneGeometry(4.8, 4.1),
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 })
-  );
-  opening.position.set(0, 2.05, 0.46);
-  group.add(opening);
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.55, metalness: 0.45 });
+  const panelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.5 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.4 });
 
+  // 牆身：左、右、門楣三塊，中間留出門洞
+  const sideW = (WALL_W - OPEN_W) / 2;
+  [-1, 1].forEach((side) => {
+    const block = new THREE.Mesh(new THREE.BoxGeometry(sideW, WALL_H, WALL_D), wallMat);
+    block.position.set(side * (OPEN_W / 2 + sideW / 2), WALL_H / 2, 0);
+    group.add(block);
+  });
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(OPEN_W, WALL_H - OPEN_H, WALL_D), wallMat);
+  lintel.position.set(0, OPEN_H + (WALL_H - OPEN_H) / 2, 0);
+  group.add(lintel);
+
+  // 牆面裝甲板：一格一格的淺色板，讓牆不會一片死灰
+  const plateGeo = new RoundedBoxGeometry(2.6, 2.3, 0.12, 2, 0.05);
+  for (let col = 0; col < 3; col++) {
+    for (let row = 0; row < 2; row++) {
+      [-1, 1].forEach((side) => {
+        const plate = new THREE.Mesh(plateGeo, panelMat);
+        plate.position.set(side * (OPEN_W / 2 + 1.9 + col * 2.95), 1.45 + row * 2.7, WALL_D / 2 + 0.04);
+        group.add(plate);
+      });
+    }
+  }
+
+  // 頂部整排警示燈條：警報時紅色脈動，解除後轉成平靜的青色
+  const alarmStripMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 1.6 });
+  const alarmStrip = new THREE.Mesh(new RoundedBoxGeometry(WALL_W - 1, 0.18, 0.12, 2, 0.05), alarmStripMat);
+  alarmStrip.position.set(0, WALL_H - 0.55, WALL_D / 2 + 0.08);
+  group.add(alarmStrip);
+
+  // 門框：黃黑警示條紋
+  const hazardMat = new THREE.MeshStandardMaterial({ map: createHazardTexture(), roughness: 0.5, metalness: 0.2 });
+  const jambGeo = new THREE.BoxGeometry(0.36, OPEN_H + 0.36, 0.3);
+  [-1, 1].forEach((side) => {
+    const jamb = new THREE.Mesh(jambGeo, hazardMat);
+    jamb.position.set(side * (OPEN_W / 2 + 0.18), (OPEN_H + 0.36) / 2, WALL_D / 2 + 0.15);
+    group.add(jamb);
+  });
+  const header = new THREE.Mesh(new THREE.BoxGeometry(OPEN_W + 0.72, 0.36, 0.3), hazardMat);
+  header.position.set(0, OPEN_H + 0.18, WALL_D / 2 + 0.15);
+  group.add(header);
+
+  // 門框內緣的光條：門被拒絕時閃紅、開門時亮綠
+  const frameGlowMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0xef4444, emissiveIntensity: 0.0 });
+  const frameGlow = new THREE.Group();
+  [-1, 1].forEach((side) => {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.06, OPEN_H, 0.06), frameGlowMat);
+    bar.position.set(side * (OPEN_W / 2 - 0.02), OPEN_H / 2, WALL_D / 2 + 0.02);
+    frameGlow.add(bar);
+  });
+  const topBar = new THREE.Mesh(new THREE.BoxGeometry(OPEN_W, 0.06, 0.06), frameGlowMat);
+  topBar.position.set(0, OPEN_H - 0.02, WALL_D / 2 + 0.02);
+  frameGlow.add(topBar);
+  group.add(frameGlow);
+
+  // 兩片艙門：關著時剛好補滿門洞，打開時滑進牆裡
   const doorMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.28, metalness: 0.65 });
   const lineMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5, metalness: 0.4 });
-
-  const doorGeo = new RoundedBoxGeometry(2.35, 4.0, 0.42, 2, 0.06);
-  const leftDoor = new THREE.Mesh(doorGeo, doorMat);
-  leftDoor.position.set(-1.18, 2.05, 0.55);
-  group.add(leftDoor);
-  const rightDoor = new THREE.Mesh(doorGeo, doorMat);
-  rightDoor.position.set(1.18, 2.05, 0.55);
-  group.add(rightDoor);
-
-  [leftDoor, rightDoor].forEach((door) => {
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0xbae6fd, roughness: 0.1, metalness: 0.2, emissive: 0x0ea5e9, emissiveIntensity: 0.5
+  });
+  const doorW = OPEN_W / 2;
+  const doorGeo = new RoundedBoxGeometry(doorW, OPEN_H, 0.34, 2, 0.05);
+  const doors = [-1, 1].map((side) => {
+    const door = new THREE.Mesh(doorGeo, doorMat);
+    door.position.set(side * doorW / 2, OPEN_H / 2, 0);
     for (let i = 0; i < 3; i++) {
-      const line = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.02), lineMat);
-      line.position.set(0, -1.2 + i * 1.1, 0.22);
+      const line = new THREE.Mesh(new THREE.BoxGeometry(doorW - 0.45, 0.05, 0.02), lineMat);
+      line.position.set(0, -1.3 + i * 1.15, 0.18);
       door.add(line);
     }
-    const win = new THREE.Mesh(
-      new RoundedBoxGeometry(0.9, 0.5, 0.05, 2, 0.03),
-      new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.1, metalness: 0.2, emissive: 0x0ea5e9, emissiveIntensity: 0.4 })
-    );
-    win.position.set(0, 0.9, 0.22);
+    const win = new THREE.Mesh(new RoundedBoxGeometry(0.95, 0.55, 0.05, 2, 0.03), winMat);
+    win.position.set(-side * 0.25, 1.1, 0.18);
     door.add(win);
+    group.add(door);
+    return door;
   });
 
-  const lightBar = new THREE.Mesh(
-    new RoundedBoxGeometry(1.0, 0.26, 0.16, 2, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 1.8 })
-  );
-  lightBar.position.set(0, 4.55, 0.5);
-  group.add(lightBar);
+  // 門縫鎖栓：警報解除時往兩側縮回
+  const boltMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.3, metalness: 0.7, emissive: 0xf59e0b, emissiveIntensity: 0.25 });
+  const bolts = [1.1, 2.15, 3.2].map((y) => {
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.9, 12), boltMat);
+    bolt.rotation.z = Math.PI / 2;
+    bolt.position.set(0, y, 0.24);
+    group.add(bolt);
+    return bolt;
+  });
 
-  group.userData.leftDoor = leftDoor;
-  group.userData.rightDoor = rightDoor;
-  group.userData.statusLight = lightBar;
+  // 門楣上的大狀態燈
+  const lampHousing = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.7, 0.3, 32),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.6 })
+  );
+  lampHousing.rotation.x = Math.PI / 2;
+  lampHousing.position.set(0, OPEN_H + 1.25, WALL_D / 2 + 0.15);
+  group.add(lampHousing);
+  const statusLampMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 2.2 });
+  const statusLamp = new THREE.Mesh(new THREE.SphereGeometry(0.48, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), statusLampMat);
+  statusLamp.rotation.x = Math.PI / 2;
+  statusLamp.position.set(0, OPEN_H + 1.25, WALL_D / 2 + 0.3);
+  group.add(statusLamp);
+  const statusGlow = createGlowSprite(0xef4444, 2.2, 0.55);
+  statusGlow.position.set(0, OPEN_H + 1.25, WALL_D / 2 + 0.7);
+  group.add(statusGlow);
+
+  // 門兩側的警示旋轉燈：底座 + 燈罩 + 會轉的光束
+  const beacons = [-1, 1].map((side) => {
+    const beacon = new THREE.Group();
+    beacon.position.set(side * (OPEN_W / 2 + 1.0), OPEN_H + 0.55, WALL_D / 2 + 0.45);
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.36, 0.22, 20),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.6 })
+    );
+    beacon.add(base);
+    const domeMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 1.8, transparent: true, opacity: 0.92
+    });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.27, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+    dome.position.y = 0.1;
+    beacon.add(dome);
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xff4d4d, transparent: true, opacity: 0.22, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+    });
+    const beamGeo = new THREE.ConeGeometry(0.55, 2.6, 20, 1, true);
+    beamGeo.rotateZ(Math.PI / 2);
+    beamGeo.translate(1.3, 0, 0);
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.y = 0.2;
+    beam.name = 'beacon_beam';
+    beacon.add(beam);
+    group.add(beacon);
+    return { group: beacon, dome, beam };
+  });
+
+  group.userData = {
+    openWidth: OPEN_W,
+    openHeight: OPEN_H,
+    doors,
+    bolts,
+    statusLamp,
+    statusGlow,
+    alarmStrip,
+    frameGlowMat,
+    beacons
+  };
+  return group;
+}
+
+/**
+ * 控制終端台座：學生操作的網頁就是這台終端機的螢幕
+ */
+export function createControlTerminal() {
+  const group = new THREE.Group();
+  group.name = 'ControlTerminal';
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.32, metalness: 0.35 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.6 });
+
+  const pedestal = new THREE.Mesh(new RoundedBoxGeometry(1.1, 1.15, 0.8, 3, 0.1), bodyMat);
+  pedestal.position.y = 0.58;
+  group.add(pedestal);
+
+  const deck = new THREE.Group();
+  deck.position.set(0, 1.25, 0.05);
+  deck.rotation.x = -0.65;
+  const deckBody = new THREE.Mesh(new RoundedBoxGeometry(1.7, 1.05, 0.16, 3, 0.06), darkMat);
+  deck.add(deckBody);
+  const screenMat = new THREE.MeshStandardMaterial({
+    color: 0x0c4a6e, emissive: 0x38bdf8, emissiveIntensity: 0.9, roughness: 0.2
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.86), screenMat);
+  screen.position.z = 0.085;
+  deck.add(screen);
+  group.add(deck);
+
+  // 螢幕背光：放在螢幕後面，才不會蓋住螢幕上的畫面
+  const glow = createGlowSprite(0x38bdf8, 2.2, 0.25);
+  glow.position.set(0, 1.5, -0.35);
+  group.add(glow);
+
+  group.userData = { screen, glow };
   return group;
 }
 

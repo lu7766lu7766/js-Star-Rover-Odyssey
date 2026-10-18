@@ -450,7 +450,7 @@ export const useLevelStore = defineStore('level', {
       soundManager.playClick();
       this.clearLogs();
       progressStore.clearSavedOperation(this.currentLevel.id);
-      // L6 是 2D 模式：3D RESET 觸發是空函式，這裡要順手把 2D 儀表板打回鎖定
+      // L6 的 3D 只是照著網頁狀態動，重置要從網頁（domLabStore）打回鎖定
       if (this.currentLevel.id === 6) {
         try {
           useDomLabStore().resetDefaults();
@@ -487,7 +487,7 @@ export const useLevelStore = defineStore('level', {
       const evaluation = {
         pass: true,
         data: { disarmed: true, airlockOpen: true, stars, fromCode: true, manual: true },
-        feedback: `2D 網頁修復成功！程式接線正確＋親手點擊完成，警報解除、氣閘滑開！（${stars}星）`
+        feedback: `網頁修復成功！程式接線正確＋親手點擊完成，警報解除、氣閘滑開！（${stars}星）`
       };
       this.lastRunResult = evaluation;
       if (this.sceneActionTrigger) {
@@ -617,7 +617,7 @@ export const useLevelStore = defineStore('level', {
         this.l6ApprovedEval = codeEval;
         this.l6ApprovedCode = payload.code;
         this.lastRunResult = null;
-        this.appendLog({ type: 'success', message: '✅ 程式送審通過！請到上方 2D 網頁親手解除警報＋開啟氣閘，完成後自動過關。' });
+        this.appendLog({ type: 'success', message: '✅ 程式送審通過！請到終端網頁親手解除警報＋開啟氣閘，完成後自動過關。' });
         this.isExecuting = false;
         return { pass: false, pendingManual: true, error: null };
       } else if (typeof payload.code === 'string') {

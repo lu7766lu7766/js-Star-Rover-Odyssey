@@ -28,6 +28,9 @@ export class SceneManager {
     this.groundDisc = null;
     this.groundGrid = null;
 
+    // 畫面下方被半透明面板蓋住的高度（px），投影中心會移到露出區域的中央
+    this.bottomInset = 0;
+
     this.init();
   }
 
@@ -270,9 +273,28 @@ export class SceneManager {
     const height = this.container.clientHeight;
     if (width === 0 || height === 0) return;
 
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    this.applyCameraView(width, height);
+  }
+
+  setBottomInset(px) {
+    this.bottomInset = Math.max(0, Math.round(px || 0));
+    this.onResize();
+    this.activeGameScene?.onViewInsetChange?.(this.bottomInset, this.container?.clientHeight || 0);
+  }
+
+  applyCameraView(width, height) {
+    const visible = height - this.bottomInset;
+    if (this.bottomInset > 0 && visible > 80) {
+      // 假想一張更高的畫面（2H - 露出高度），只畫它的下半段，投影中心就落在露出區域正中央
+      const fullHeight = 2 * height - visible;
+      this.camera.aspect = width / fullHeight;
+      this.camera.setViewOffset(width, fullHeight, 0, fullHeight - height, width, height);
+    } else {
+      this.camera.aspect = width / height;
+      this.camera.clearViewOffset();
+    }
+    this.camera.updateProjectionMatrix();
   }
 
   setLowPerformance(isLow) {
