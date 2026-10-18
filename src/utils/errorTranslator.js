@@ -8,6 +8,7 @@
 
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { stripCommentsAndStrings } from './codeAnalysis.js';
+import { findTopLevelDeclarations } from '../sandbox/gameApi.js';
 
 /** 錯誤圖鑑：每一種錯誤類型的名稱與圖示（學生收集用） */
 export const ERROR_DEX = {
@@ -134,6 +135,71 @@ export function extractStudentLine(stack, offset, totalLines) {
   return line;
 }
 
+const escapeRe = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** 具名函式與它的第一個參數：function f(p) / const f = function (p) / const f = (p) => / const f = p => */
+function namedFunctionParams(stripped) {
+  const pairs = [];
+  const re = /\bfunction\s+([A-Za-z_$][\w$]*)\s*\(\s*([A-Za-z_$][\w$]*)|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:function\s*\(\s*([A-Za-z_$][\w$]*)|\(?\s*([A-Za-z_$][\w$]*)\s*\)?\s*=>)/g;
+  let m;
+  while ((m = re.exec(stripped))) pairs.push({ fn: m[1] || m[3], param: m[2] || m[4] || m[5] });
+  return pairs;
+}
+
+/**
+ * 「distance is not defined」但 distance 其實是某個物件的屬性：
+ * 回傳建議寫法（例如 planet.distance）；看不出該讀哪個物件就回傳 null，不亂猜
+ */
+function propertyUsedAsVariable(code, name) {
+  const stripped = stripCommentsAndStrings(code);
+  const id = escapeRe(name);
+  // 哪些變數的物件字面值裡有這個屬性
+  const owners = [];
+  const ownerRe = new RegExp(`\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*\\{[^}]*\\b${id}\\s*:`, 'g');
+  let m;
+  while ((m = ownerRe.exec(stripped))) owners.push(m[1]);
+  if (owners.length === 0) return null;
+  // 這些物件被交給某個函式：函式裡要用參數來讀
+  for (const { fn, param } of namedFunctionParams(stripped)) {
+    const passed = owners.some((o) => new RegExp(`\\b${escapeRe(fn)}\\s*\\(\\s*${escapeRe(o)}\\s*[,)]`).test(stripped));
+    if (passed) return `${param}.${name}`;
+  }
+  // 最外層宣告的物件才能在任何地方直接讀；函式裡的區域物件（例如 params）不建議
+  const topLevel = new Set(findTopLevelDeclarations(code).map((d) => d.name));
+  const owner = owners.find((o) => topLevel.has(o));
+  return owner ? `${owner}.${name}` : null;
+}
+
+/**
+ * 「Cannot read properties of undefined (reading 'x')」時，推測是哪個名字變成 undefined：
+ * - const r = f(...) 後讀 r.x → f 沒有 return
+ * - 函式參數 p 讀 p.x → 呼叫 f() 時沒有把東西交給參數
+ */
+function explainUndefinedRead(code, prop) {
+  const stripped = stripCommentsAndStrings(code);
+  const readers = new Set();
+  const re = new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*${escapeRe(prop)}\\b`, 'g');
+  let m;
+  while ((m = re.exec(stripped))) readers.add(m[1]);
+  for (const name of readers) {
+    const assigned = stripped.match(new RegExp(`\\b(?:const|let|var)\\s+${escapeRe(name)}\\s*=\\s*([A-Za-z_$][\\w$]*)\\s*\\(`));
+    if (assigned) {
+      return {
+        title: `「${name}」是 undefined，讀不到 .${prop}`,
+        explain: `${name} 存的是 ${assigned[1]}(...) 的回傳值，但 ${assigned[1]} 沒有交回任何東西。檢查函式裡有沒有寫 return。`
+      };
+    }
+  }
+  const param = namedFunctionParams(stripped).find((p) => readers.has(p.param));
+  if (param) {
+    return {
+      title: `函式參數「${param.param}」是 undefined，讀不到 .${prop}`,
+      explain: `呼叫 ${param.fn}() 時，括號裡忘了放要交給它的東西，例如 ${param.fn}(某個物件)；也檢查括號裡的名字有沒有拼錯。`
+    };
+  }
+  return null;
+}
+
 function similarDeclaredName(code, name) {
   const declared = (stripCommentsAndStrings(code).match(/\b(?:let|const|var|function)\s+([A-Za-z_$][\w$]*)/g) || [])
     .map((m) => m.split(/\s+/).pop());
@@ -173,6 +239,10 @@ export function translateError({ message = '', name = '', line = null, code = ''
     if (similar) {
       return result('not-defined', `找不到叫做「${id}」的變數`, `你宣告的是「${similar}」。JavaScript 會區分大小寫，名字要一模一樣。`);
     }
+    const asProperty = propertyUsedAsVariable(code, id);
+    if (asProperty) {
+      return result('not-defined', `「${id}」不是變數，是物件裡的屬性`, `屬性不能單獨使用，要寫成「物件.${id}」，例如 ${asProperty}。`);
+    }
     return result('not-defined', `找不到叫做「${id}」的變數或指令`, `檢查拼字是否正確；如果它是一段文字，記得加引號；如果它是變數，要先用 let 宣告。`);
   }
 
@@ -182,6 +252,8 @@ export function translateError({ message = '', name = '', line = null, code = ''
     if (m[1] === 'null' && /^(addEventListener|textContent|style|classList|innerText)$/.test(m[2] || '')) {
       return result('read-undefined', `querySelector 沒有找到元素，所以拿不到 ${prop}`, '選擇器要寫成字串並在 id 前加 #，例如 document.querySelector("#disarm-btn")；id 要跟網頁上標示的一模一樣。');
     }
+    const guess = m[1] === 'undefined' && m[2] ? explainUndefinedRead(code, m[2]) : null;
+    if (guess) return result('read-undefined', guess.title, guess.explain);
     return result('read-undefined', `想讀取 ${prop}，但前面的東西是 ${m[1]}`, `${m[1]} 代表「什麼都沒有」。檢查 ${prop} 前面的名稱或路徑有沒有打錯。`);
   }
 

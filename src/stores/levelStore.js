@@ -13,6 +13,7 @@ import { findUnfilledBlank } from '../utils/codeAnalysis.js';
 import { STUDENT_CODE_LINE_OFFSET } from '../sandbox/gameApi.js';
 import { instrumentForTrace } from '../utils/codeTracer.js';
 import { MAZE_STEP_SECONDS } from '../game/sim/maze.js';
+import { scanAnimationPlan } from '../game/sim/scanner.js';
 import { buildCustomCourse, isValidCustomMiddle, describeFailure, CUSTOM_COURSE_ID } from '../game/sim/parkour.js';
 import {
   translateError,
@@ -42,15 +43,19 @@ export function autoTraceInterval(totalMs, stepCount) {
  * 算出每一步要在第幾毫秒亮起。
  * - 有 actionMs（3D 一個動作對應一個 API 呼叫）：「發出第 k 個呼叫的那一步」剛好在 3D 開始第 k 個動作時亮起，
  *   同一段裡前面的步驟（例如迴圈判斷）平均排在前一個動作的最後 30%。
- * - 沒有：每步固定間隔 intervalMs。
+ * - 有 actionStartsMs（每個動作長度不同，例如 L5 的脈衝與飛行）：第 k 個動作在 actionStartsMs[k] 開始，其餘同上。
+ * - 都沒有：每步固定間隔 intervalMs。
  * @param {{ calls: number }[]} steps
  * @returns {number[]} 每一步距離開始播放的毫秒數（遞增）
  */
-export function buildTraceSchedule(steps, { actionMs = 0, intervalMs = TRACE_MANUAL_STEP_MS } = {}) {
+export function buildTraceSchedule(steps, { actionMs = 0, actionStartsMs = null, intervalMs = TRACE_MANUAL_STEP_MS } = {}) {
   const totalCalls = steps.length > 0 ? steps[steps.length - 1].calls : 0;
-  if (!actionMs || totalCalls < 2) {
+  if ((!actionMs && !actionStartsMs) || totalCalls < 2) {
     return steps.map((_, i) => i * intervalMs);
   }
+  const startOf = (c) => (actionStartsMs ? actionStartsMs[Math.min(c, actionStartsMs.length - 1)] : c * actionMs);
+  // 第 c 段可以借用前一個動作最後 30% 的時間（第 0 段借第一個動作的前 30%）
+  const lead = (c) => 0.3 * (c === 0 ? startOf(1) - startOf(0) : startOf(c) - startOf(c - 1));
   const times = [];
   let i = 0;
   while (i < steps.length) {
@@ -60,13 +65,12 @@ export function buildTraceSchedule(steps, { actionMs = 0, intervalMs = TRACE_MAN
     const count = j - i;
     if (c >= totalCalls) {
       // 最後一個動作之後的程式：接在動畫後面，照固定間隔
-      const base = totalCalls * actionMs;
+      const base = startOf(totalCalls);
       for (let k = 0; k < count; k++) times.push(base + k * intervalMs);
     } else {
-      // 這一段最後一步（發出第 c 個呼叫）在 c * actionMs 亮起；
-      // 第 0 段沒有「前一個動作」可以借時間，就擠在第一個動作的前 30%
-      const end = c === 0 ? (count === 1 ? 0 : actionMs * 0.3) : c * actionMs;
-      const start = c === 0 ? 0 : end - actionMs * 0.3;
+      // 這一段最後一步（發出第 c 個呼叫）在第 c 個動作開始時亮起
+      const end = c === 0 ? (count === 1 ? 0 : lead(0)) : startOf(c);
+      const start = c === 0 ? 0 : end - lead(c);
       for (let k = 0; k < count; k++) {
         times.push(count === 1 ? end : start + ((end - start) * k) / (count - 1));
       }
@@ -691,7 +695,8 @@ export const useLevelStore = defineStore('level', {
           animDuration = Math.max(1200, Math.min(totalSteps * 420, 5000));
         }
       } else if (currentLevel.id === 5) {
-        animDuration = 1500;
+        // 每發脈衝一段、每次 rover.flyTo 一段，依序播放（呼叫太多時場景會加速，總長同 scanAnimationPlan）
+        animDuration = Math.max(1200, scanAnimationPlan(tracePayload.apiCalls || []).totalMs + 300);
       } else if (currentLevel.id === 7) {
         animDuration = 1800;
       } else if (currentLevel.id === 8) {
@@ -706,10 +711,11 @@ export const useLevelStore = defineStore('level', {
       if (this.traceSteps.length > 0) {
         const intervalMs = autoTraceInterval(animDuration, this.traceSteps.length);
         const actionMs = ACTION_MS_BY_LEVEL[currentLevel.id] || 0;
+        const actionStartsMs = currentLevel.id === 5 ? scanAnimationPlan(tracePayload.apiCalls || []).startsMs : null;
         this.playTrace({
-          schedule: buildTraceSchedule(this.traceSteps, { actionMs, intervalMs }),
+          schedule: buildTraceSchedule(this.traceSteps, { actionMs, actionStartsMs, intervalMs }),
           intervalMs,
-          maxMs: actionMs ? Infinity : Math.max(animDuration + 1000, 4000),
+          maxMs: actionMs || actionStartsMs ? Infinity : Math.max(animDuration + 1000, 4000),
           fromStart: true,
           exitAtEnd: true
         });

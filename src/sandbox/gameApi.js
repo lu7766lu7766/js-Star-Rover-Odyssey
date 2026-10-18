@@ -4,7 +4,7 @@
  * 學生程式碼在 Worker 內能呼叫的「遊戲 API」都在這裡宣告。
  * 以前每個 API 都在 worker.js 手寫一遍 `recordedAPICalls.push + postMessage`，
  * 現在簡單的 API 用一張宣告表（命名空間 → 方法名 → 參數個數）統一處理，
- * 有額外行為的 API（setAutoPilot / installModule / fetchStation / runner.setAutoRun）才特別寫。
+ * 有額外行為的 API（setAutoPilot / scanner.pulse / fetchStation / runner.setAutoRun）才特別寫。
  *
  * 這個模組不依賴 Worker 全域（self / postMessage），所以 vitest 可以直接測試。
  */
@@ -12,6 +12,28 @@
 import { BENCHMARK_STATION_DATA } from '../services/weatherService.js';
 import { PARKOUR_COURSES, runCourse, isValidCustomCourse, CUSTOM_COURSE_ID } from '../game/sim/parkour.js';
 import { stripCommentsAndStrings } from '../utils/codeAnalysis.js';
+import { VISIBLE_PLANETS, HIDDEN_SYSTEMS, evaluatePulse, buildReport, toPlanetObject } from '../game/sim/scanner.js';
+
+/** 轉成可以 postMessage 的純資料（函式之類的值無法複製） */
+function toPlain(value) {
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (e) {
+    return String(value);
+  }
+}
+
+/** 記錄 scanner.pulse 的參數：range 保留 NaN（JSON 會變 null），另外記下屬性名稱方便抓拼錯 */
+function snapshotPulseParams(params) {
+  if (!params || typeof params !== 'object') return { value: toPlain(params), keys: [] };
+  return {
+    target: toPlain(params.target),
+    range: typeof params.range === 'number' ? params.range : toPlain(params.range),
+    mode: toPlain(params.mode),
+    keys: Object.keys(params)
+  };
+}
 
 /** 簡單 API：僅記錄呼叫（命名空間 → { 方法名: 參數個數 }） */
 export const SIMPLE_API_TABLE = Object.freeze({
@@ -63,15 +85,20 @@ const DEFAULT_DRONES = [
  * @param {Array} ctx.calls 記錄所有 API 呼叫的陣列（apiCalls trace，由呼叫端持有）
  * @param {(payload: object) => void} [ctx.emit] 每次 API 呼叫時通知主執行緒（Worker 用 postMessage）
  * @param {object} [ctx.initialData] 關卡初始資料（例如 L7 的 drones）
+ * @param {object} [ctx.hooks] 呼叫端用的內部掛鉤（不給學生程式碼），例如 L5 的 runHiddenScanSurvey
  * @returns {object} 可直接展開成學生程式碼全域的 API 物件
  */
-export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
+export function createGameApi({ calls, emit = () => {}, initialData = {}, hooks = {} }) {
   /**
    * @param {string} api API 名稱，例如 'rover.moveForward'
    * @param {Array} args 記錄的參數
    * @param {{ extra?: object, payload?: object }} [opts] extra: 附加到 trace 的欄位；payload: 通知主執行緒的內容
    */
+  // L5 隱藏星系考驗進行中時，脈衝改記在這裡；其他 API 呼叫一律不記（不能洩漏隱藏星系、也不能驅動 3D）
+  let hiddenSink = null;
+
   const record = (api, args = [], { extra = {}, payload = { api, args } } = {}) => {
+    if (hiddenSink) return;
     calls.push({ api, args, ...extra });
     emit(payload);
   };
@@ -114,27 +141,56 @@ export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
     });
   };
 
-  // L5：安裝模組物件並真的呼叫 activate()
-  rover.installModule = (moduleObj) => {
-    let activateResult = null;
-    let activateError = null;
-    const hasActivate = typeof moduleObj?.activate === 'function';
-    if (hasActivate) {
-      try {
-        activateResult = moduleObj.activate();
-      } catch (e) {
-        activateError = e.message;
+  // L5：深空掃描雷達。學生的 scanPlanet 跑完後，worker 會呼叫 hooks.runHiddenScanSurvey
+  // 拿同一個函式去掃隱藏星系（那時的脈衝只記在 hiddenSink，不進 apiCalls、不驅動 3D）
+  let scanPlanets = VISIBLE_PLANETS;
+  const scanner = {
+    pulse: (params) => {
+      const evaluation = evaluatePulse(params, scanPlanets);
+      const snapshot = snapshotPulseParams(params);
+      const distance = evaluation.planet?.distance;
+      if (hiddenSink) {
+        hiddenSink.push({ status: evaluation.status, params: snapshot, distance });
+      } else {
+        record('scanner.pulse', [snapshot], {
+          extra: { status: evaluation.status, distance },
+          payload: { api: 'scanner.pulse', args: [snapshot], status: evaluation.status }
+        });
       }
+      return buildReport(params, evaluation);
     }
-    const summary = {
-      name: moduleObj?.name,
-      range: moduleObj?.range,
-      mode: moduleObj?.mode,
-      activateResult,
-      hasActivate
-    };
-    record('rover.installModule', [{ ...summary, activateError }], {
-      payload: { api: 'rover.installModule', args: [summary] }
+  };
+
+  rover.flyTo = (coords) => {
+    record('rover.flyTo', [toPlain(coords)]);
+  };
+
+  hooks.runHiddenScanSurvey = (scanFn) => {
+    const systems = [];
+    try {
+      for (const system of HIDDEN_SYSTEMS) {
+        scanPlanets = system.planets;
+        const planets = system.planets.map((planet) => {
+          hiddenSink = [];
+          let error = null;
+          try {
+            scanFn(toPlanetObject(planet));
+          } catch (e) {
+            error = e instanceof Error ? e.message : String(e);
+          }
+          const pulses = hiddenSink;
+          const ok = !error && pulses.some((p) => p.status === 'OK' && p.params.target === planet.name);
+          return { name: planet.name, distance: planet.distance, ok, error, pulses };
+        });
+        systems.push({ id: system.id, planets });
+      }
+    } finally {
+      scanPlanets = VISIBLE_PLANETS;
+      hiddenSink = null;
+    }
+    record('scanner.hiddenSurvey', [], {
+      extra: { systems },
+      payload: { api: 'scanner.hiddenSurvey' }
     });
   };
 
@@ -174,7 +230,7 @@ export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
     }
   };
 
-  return { rover, drill, drones, droneFleet, fetchStation, drone, runner };
+  return { rover, drill, drones, droneFleet, fetchStation, drone, runner, scanner };
 }
 
 /**
@@ -186,7 +242,7 @@ export function createGameApi({ calls, emit = () => {}, initialData = {} }) {
  * @param {Record<string, any>} globals 要注入的全域（console / assert / document / 遊戲 API …）
  * @returns {any} 學生程式碼的回傳值（可能是 Promise）
  */
-export function runStudentCode(code, globals, { onVariables } = {}) {
+export function runStudentCode(code, globals, { onVariables, probe } = {}) {
   // 若學生程式碼在頂層自行宣告了同名變數（如 const drones = [...]），
   // 該名稱不應作為 Function 參數傳入，否則會觸發 JS SyntaxError: Identifier '...' has already been declared
   const declaredInCode = new Set(
@@ -208,6 +264,15 @@ export function runStudentCode(code, globals, { onVariables } = {}) {
       body = `${code}\n;try { ${CAPTURE_FN_NAME}({ ${fields} }); } catch (__srErr) {}`;
     }
   }
+  // 程式跑到最後時，把指定名稱的頂層函式交給呼叫端（例如 L5 拿 scanPlanet 去掃隱藏星系）
+  if (probe && Array.isArray(probe.names) && typeof probe.callback === 'function') {
+    names.push(PROBE_FN_NAME);
+    values.push(probe.callback);
+    const fields = probe.names
+      .map((n) => `${n}: typeof ${n} === 'function' ? ${n} : undefined`)
+      .join(', ');
+    body = `${body}\n;try { ${PROBE_FN_NAME}({ ${fields} }); } catch (__srErr) {}`;
+  }
   // eslint-disable-next-line no-new-func
   const executeFn = new Function(...names, `"use strict";\n${body}`);
   return executeFn(...values);
@@ -221,6 +286,7 @@ export function runStudentCode(code, globals, { onVariables } = {}) {
 export const STUDENT_CODE_LINE_OFFSET = 3;
 
 const CAPTURE_FN_NAME = '__srCaptureVars';
+const PROBE_FN_NAME = '__srProbeFns';
 
 /**
  * 找出最外層（不在任何 { } 或 ( ) 裡）用 let / const / var 宣告的變數名稱。
@@ -262,6 +328,7 @@ export function createTraceRecorder({ calls = [], hiddenValues = [], limit = TRA
   const steps = [];
   const hidden = new Set(hiddenValues);
   let truncated = false;
+  let paused = false;
 
   // 取不到（不在作用域、還沒宣告）就當作看不到
   const safeGet = (getter) => {
@@ -273,6 +340,7 @@ export function createTraceRecorder({ calls = [], hiddenValues = [], limit = TRA
   };
 
   const hook = (line, getVars) => {
+    if (paused) return;
     if (steps.length >= limit) {
       truncated = true;
       return;
@@ -299,6 +367,10 @@ export function createTraceRecorder({ calls = [], hiddenValues = [], limit = TRA
     hook,
     safeGet,
     steps,
+    /** 暫停／恢復記錄（例如 L5 隱藏星系考驗時，不把那些步驟放進逐行重播） */
+    setPaused(value) {
+      paused = Boolean(value);
+    },
     get truncated() {
       return truncated;
     }

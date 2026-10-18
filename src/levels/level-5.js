@@ -1,264 +1,202 @@
 /**
- * Level 5: 模組裝載
- * 核心概念：函式呼叫與物件參數 (Functions & Object Arguments: f(x))
+ * Level 5: 深空普查
+ * 核心概念：物件屬性（obj.prop）、函式參數與回傳值、同一個函式重複使用
+ *
+ * 三顆星距離都不一樣，range 寫死一定會有星體失敗；
+ * 驗證時還會拿學生的 scanPlanet 去掃隱藏星系（見 sandbox/gameApi.js 的 runHiddenScanSurvey），
+ * 只有真的用 planet.distance 算的函式才過得了。
  */
 
-export const AVAILABLE_METHODS = [
-  {
-    id: 'activateScan',
-    name: 'activateScan',
-    label: '廣域掃描 (Wide Scan)',
-    signature: 'activateScan(scanParams)',
-    description: '釋放環狀廣域脈衝，一次普查整片空域，是本任務唯一能覆蓋所有隱藏天體的方法',
-    returns: '"SCAN_COMPLETE"',
-    usesParams: ['range', 'mode']
-  },
-  {
-    id: 'focusScan',
-    name: 'focusScan',
-    label: '集束掃描 (Focus Scan)',
-    signature: 'focusScan(scanParams)',
-    description: '發射集束直線波，一次只能解析單顆指定目標，無法完成全空域普查',
-    returns: '"PARTIAL_SINGLE"',
-    usesParams: ['target', 'power']
-  },
-  {
-    id: 'pingEcho',
-    name: 'pingEcho',
-    label: '短促回波 (Ping Echo)',
-    signature: 'pingEcho(scanParams)',
-    description: '發出短促回波，只能看到近距離殘影，遠端天體完全收不到訊號',
-    returns: '"PARTIAL_NEAR"',
-    usesParams: ['duration']
+import {
+  VISIBLE_PLANETS,
+  RANGE_MARGIN,
+  HIGH_RES_DISTANCE,
+  describePulseFailure
+} from '../game/sim/scanner.js';
+import { codeMatches } from '../utils/codeAnalysis.js';
+
+export const LEVEL_5_STARTER_CODE = `// 深空普查：雷達在迷霧裡偵測到 3 顆隱藏星體
+const planetA = { name: "Kepler-A", distance: 8 };
+const planetB = { name: "Kepler-B", distance: 14 };
+const planetC = { name: "Kepler-C", distance: 21 };
+
+// 掃描一顆星體：半徑 = 星體距離 + 2（太小掃不到，太大會過熱）
+function scanPlanet(planet) {   // @param {Object} planet 要掃描的星體物件
+  const params = {
+    target: planet.name,
+    range: ___ + 2,   // @type {number} 星體的距離（從 planet 物件裡讀）
+    mode: "NORMAL"
+  };
+  if (planet.distance > 15) {
+    params.mode = ___;   // @type {"HIGH" | "NORMAL"} 遠距離星體的解析度
   }
-];
+  return scanner.pulse(params);   // 回傳掃描報告 { target, found, coords }
+}
 
-export const INITIAL_METHOD_CALL = {
-  methodId: 'pingEcho',
-  params: {
-    range: 10,
-    mode: 'NORMAL',
-    target: 'NEAR-01',
-    power: 50,
-    duration: 1
-  }
-};
+const reportA = scanPlanet(planetA);
+const reportB = scanPlanet(___);   // @type {Object} 要掃描的星體物件
+const reportC = ___;   // @type {Object} 呼叫 scanPlanet 掃描 C 星，存下報告
 
-export const LEVEL_5_STARTER_CODE = `// 模組裝載
-const scanParams = {
-  range: ___,      // @type {number} 掃描半徑
-  mode: ___        // @type {"HIGH" | "NORMAL"} 解析度
-};
-
-const scanModule = {
-  name: ___,       // @type {"activateScan" | "focusScan" | "pingEcho"} 掃描方法
-  range: scanParams.range,
-  mode: scanParams.mode,
-  activate: function() {
-    return ___;    // @type {"SCAN_COMPLETE" | "PARTIAL_SINGLE" | "PARTIAL_NEAR"} 掃描回傳值
-  }
-};
-
-rover.installModule(scanModule);
+rover.flyTo(___);   // @type {Object} C 星報告裡的座標
 `;
+
+const PLANET_C = VISIBLE_PLANETS[VISIBLE_PLANETS.length - 1];
+
+/** 半徑類失敗算第 0 項要求，解析度類算第 1 項，其他（目標錯誤）算第 2 項 */
+const REQ_BY_STATUS = {
+  BAD_RANGE: 0,
+  TOO_SHORT: 0,
+  OVERHEAT: 0,
+  BAD_MODE: 1,
+  LOW_RES: 1,
+  OVEREXPOSED: 1,
+  BAD_PARAMS: 2,
+  NO_TARGET: 2
+};
+
+const sameCoords = (a, b) => Boolean(a && b) && a.x === b.x && a.z === b.z;
 
 export default {
   id: 5,
-  title: '模組裝載',
-  subtitle: '函式呼叫與物件參數',
+  title: '深空普查',
+  subtitle: '物件屬性與函式重複使用',
   // 一句話任務目標（任務欄最上方）
-  goal: '組好掃描模組物件：選對函式、設定參數，完成全空域普查',
-  conceptTitle: '函式是動詞，物件是受詞：f(x)',
+  goal: '寫一個 scanPlanet 函式，掃描 3 顆隱藏星體，再飛往最遠的 C 星',
+  conceptTitle: '寫一次函式，換不同的物件就能一直用',
   // 通關後的出場券：一題快速檢核
   quiz: {
-    question: '要取出 range 的值，該怎麼寫？',
-    code: 'const scanParams = { range: 18, mode: "HIGH" };',
-    options: ['scanParams.range', 'scanParams(range)', 'range.scanParams'],
+    question: '執行後 result 是多少？',
+    code: `function scanRange(planet) {
+  return planet.distance + 2;
+}
+const result = scanRange({ name: "Vega", distance: 10 });`,
+    options: ['12', '10', '"Vega"'],
     answer: 0,
-    explain: '用「物件.屬性」讀出物件裡的值：scanParams.range 會得到 18。'
+    explain: '呼叫時把 { name: "Vega", distance: 10 } 交給參數 planet，planet.distance 讀出 10，回傳 10 + 2 = 12。'
   },
-  concepts: ['函式定義與呼叫 (Function Call)', '物件作為參數 (Object Argument)', '回傳值 (Return Value)'],
-  description: `探測船進入未探明的迷霧星區，量子掃描雷達已裝配完成。雷達提供三個函式（方法）：廣域掃描 activateScan、集束掃描 focusScan、短促回波 pingEcho。本次任務是全空域普查——所有隱藏天體座標都要解密（最遠天體在 18 單位，需用 "HIGH" 解析度才能解析深空頻譜）。請選對函式，並配好傳入的參數物件 scanParams（範圍 range、解析度 mode），一發完成普查！方法卡上的「回傳」那一行即為成功普查的回傳字串，請整行照抄。填寫時全部填英文：字串加引號，數字不加引號，填中文一定失敗。`,
+  concepts: ['物件屬性 (obj.prop)', '函式參數 (Parameter)', '回傳值 (Return Value)', '同一個函式重複呼叫'],
+  description: `探測船進入迷霧星區，雷達偵測到 3 顆隱藏星體 Kepler-A、B、C，每顆星都是一個物件，記著名字 name 和距離 distance。掃描脈衝的半徑 range 至少要等於星體距離才碰得到它，但最多只能比距離多 ${RANGE_MARGIN}，不然雷達會過熱；距離超過 ${HIGH_RES_DISTANCE} 的星體要切 "HIGH" 解析度，近的用 "HIGH" 反而會過曝。三顆星的距離都不一樣，所以不能把數字寫死——請完成 scanPlanet(planet) 函式，讓它從 planet 物件讀出距離、算出參數，再分別掃描三顆星。scanner.pulse 會回傳一份掃描報告，掃到的話座標就在報告的 coords 裡，最後把 C 星的座標交給 rover.flyTo 出發！小心：系統還會拿你的 scanPlanet 去掃幾個沒公開的隱藏星系，只對這三顆星有效的寫法過不了。`,
   targetRequirements: [
-    '呼叫正確的函式：activateScan(scanParams)（全空域普查唯一正解）',
-    '參數物件設定 range >= 18 單位（覆蓋最遠的隱藏天體）',
-    '參數物件設定 mode 為 "HIGH"（解析深空頻譜）',
-    '理解回傳值：只有 activateScan 回傳 "SCAN_COMPLETE"，其餘兩個函式只回傳部分結果'
+    '掃描半徑：range 用 planet.distance 算出來（距離 + 2）',
+    `解析度：距離超過 ${HIGH_RES_DISTANCE} 的星體，把 params.mode 改成 "HIGH"`,
+    '呼叫 scanPlanet 三次，把 Kepler-A、B、C 都掃到',
+    '把 C 星報告裡的座標 reportC.coords 交給 rover.flyTo',
+    '隱藏星系考驗：同一個 scanPlanet 換一組星體也要全部掃到'
   ],
   controlType: 'module-object',
-  availableMethods: AVAILABLE_METHODS,
-  initialMethodCall: INITIAL_METHOD_CALL,
-  // 舊存檔相容：過去以 moduleConfig 儲存的進度會被遷移為 methodCall
-  initialVariables: INITIAL_METHOD_CALL,
   hints: [
-    '提示 1【函式觀念】：函式是「動詞」，物件是「受詞」。呼叫寫成 f(x)：f 是要做的事，x 是做事用的原料包。本關的三個 f 行為完全不同，先讀方法卡再選！',
-    '提示 2【方法選型】：任務是「全空域普查」。集束掃描一次只看一顆星、短促回波只看得到近距離，哪一個函式才是為普查設計的？',
-    '提示 3【參數物件】：選對函式後，傳入的 scanParams 物件還要合格：range 覆蓋半徑 >= 18、mode 切到 HIGH，執行鈕會即時顯示你正在呼叫的完整算式！'
+    '提示 1【讀物件屬性】：planet 是一個物件，用「物件.屬性」讀出裡面的值：planet.name 是名字、planet.distance 是距離。函式裡要用參數 planet，不要寫 planetA——這樣同一個函式才能掃每一顆星。',
+    '提示 2【呼叫函式】：呼叫寫成「函式名(要交給它的東西)」：scanPlanet(planetB) 會把 planetB 交給參數 planet。reportC 那一行要自己寫出完整的呼叫，把回傳的報告存起來。',
+    '提示 3【回傳值】：scanPlanet 回傳的報告是一個物件 { target, found, coords }，座標在它的 coords 屬性裡，所以要寫 rover.flyTo(reportC.coords)。想看報告長什麼樣子，可以加一行 console.log(reportC)。'
   ],
-  jsCodeExample: `// 💡 JavaScript 對照：函式是動詞，物件是原料包
-const scanParams = {
-  range: 20,      // 掃描半徑
-  mode: "HIGH"    // 解析度
-};
+  jsCodeExample: `// 💡 JavaScript 對照：物件裝資料，函式寫一次、用很多次
+const planetA = { name: "Kepler-A", distance: 8 };
+const planetB = { name: "Kepler-B", distance: 14 };
+const planetC = { name: "Kepler-C", distance: 21 };
 
-// ✅ 正解：廣域普查，一發覆蓋全空域
-activateScan(scanParams);   // 回傳 "SCAN_COMPLETE"
+function scanPlanet(planet) {        // planet 是參數：每次呼叫換成不同的星
+  const params = {
+    target: planet.name,              // 物件.屬性：讀出名字
+    range: planet.distance + 2,       // 讀出距離再 + 2
+    mode: "NORMAL"
+  };
+  if (planet.distance > 15) {
+    params.mode = "HIGH";             // 也可以改寫物件的屬性
+  }
+  return scanner.pulse(params);       // 把報告交回給呼叫的人
+}
 
-// ❌ 集束波：一次只能解析單顆目標
-focusScan(scanParams);      // 回傳 "PARTIAL_SINGLE"
+const reportA = scanPlanet(planetA);  // planet = planetA
+const reportB = scanPlanet(planetB);  // planet = planetB
+const reportC = scanPlanet(planetC);  // planet = planetC
 
-// ❌ 短促回波：只能看到近距離殘影
-pingEcho(scanParams);       // 回傳 "PARTIAL_NEAR"`,
-  conceptExplanation: `**函式 (Function)** 是程式的「動詞」，負責做事；**物件 (Object)** 常被當成「一包參數」傳進函式，寫成 \`f(x)\`。同一個原料包傳給不同的函式，結果完全不同——選對函式跟配對參數一樣重要。這就是本關 3D 裡三種波型看起來完全不一樣的原因。`,
+console.log(reportC);                 // { target: "Kepler-C", found: true, coords: {...} }
+rover.flyTo(reportC.coords);          // 回傳值的屬性，接著拿去用`,
+  conceptExplanation: `**物件 (Object)** 把相關的資料裝在一起，用 \`物件.屬性\` 讀出來，例如 \`planet.distance\`。**函式 (Function)** 寫一次，每次呼叫時把不同的東西交給參數：\`scanPlanet(planetA)\` 時 planet 就是 planetA，\`scanPlanet(planetC)\` 時就是 planetC。函式用 **return** 把結果交回來，存進變數後還能繼續用，例如 \`reportC.coords\`。這就是 3D 裡同一個函式打出三道大小不同的脈衝的原因。`,
   starterCode: LEVEL_5_STARTER_CODE,
   validate: (runResult) => {
-    // 新鏈路：Worker 真跑 rover.installModule(moduleObj) 的 trace
-    if (runResult.apiCalls && Array.isArray(runResult.apiCalls)) {
-      const calls = runResult.apiCalls.filter((c) => c.api === 'rover.installModule');
-      if (calls.length === 0) {
-        return {
-          pass: false,
-          reqIndex: 0,
-          error: '沒有偵測到 rover.installModule(...)！請定義 scanModule 物件並呼叫 rover.installModule(scanModule)。'
-        };
-      }
-      const mod = calls[calls.length - 1].args[0] || {};
-      const code = runResult.code || '';
+    const calls = Array.isArray(runResult?.apiCalls) ? runResult.apiCalls : [];
+    const code = runResult?.code || '';
+    const fail = (reqIndex, error) => ({ pass: false, reqIndex, error });
 
-      if (!mod.hasActivate) {
-        return {
-          pass: false,
-          reqIndex: 3,
-          error: 'scanModule 缺少 activate 函式！模組必須有 activate 方法（function），回傳普查結果字串。'
-        };
-      }
-      if (mod.activateError) {
-        return {
-          pass: false,
-          reqIndex: 3,
-          error: `activate() 執行出錯：${mod.activateError}。請檢查函式內容。`
-        };
-      }
-      if (mod.name !== 'activateScan') {
-        const got = mod.name ?? '未命名';
-        const hint = mod.name === 'focusScan'
-          ? 'focusScan 是集束直線波，一次只能解析單顆指定目標，無法完成「全空域普查」。'
-          : 'pingEcho 是短促回波，只能看到近距離殘影，遠端天體完全收不到訊號。';
-        return {
-          pass: false,
-          reqIndex: 0,
-          error: `方法選型錯誤！你裝載的是【${got}】。${hint}請改用 activateScan。`,
-          details: { methodId: mod.name, expected: 'activateScan' }
-        };
-      }
-      const numRange = Number(mod.range);
-      if (isNaN(numRange) || numRange < 18) {
-        return {
-          pass: false,
-          reqIndex: 1,
-          error: `參數不足！目前 range 為 ${mod.range} 單位，最遠的隱藏天體位於 18 單位處，請將半徑調至 18 或以上！`
-        };
-      }
-      if (mod.mode !== 'HIGH') {
-        return {
-          pass: false,
-          reqIndex: 2,
-          error: `參數不足！目前 mode 為 ${JSON.stringify(mod.mode)}，請切換為 "HIGH" 才能解析星圖深空頻譜。`
-        };
-      }
-      if (mod.activateResult !== 'SCAN_COMPLETE') {
-        return {
-          pass: false,
-          reqIndex: 3,
-          error: `回傳值錯誤！activate() 回傳了 ${JSON.stringify(mod.activateResult)}，全空域普查成功必須回傳 "SCAN_COMPLETE"。`
-        };
-      }
+    const pulses = calls
+      .filter((c) => c.api === 'scanner.pulse')
+      .map((c) => ({ status: c.status, distance: c.distance, params: c.args?.[0] || {} }));
+    if (pulses.length === 0) {
+      return fail(2, '沒有偵測到任何掃描脈衝！scanPlanet 裡要 return scanner.pulse(params)，並用 scanPlanet(planetA) 這樣的寫法呼叫它。');
+    }
 
-      // 星級：物件是否具名宣告 + 是否用 function/return
-      const hasNamedObject = /(let|const)\s+\w+\s*=\s*\{/.test(code);
-      const hasFunction = /function|=>/.test(code);
-      let stars, suffix;
-      if (hasNamedObject && hasFunction) {
-        stars = 3;
-        suffix = '（3星：物件具名宣告 + 方法回傳，完美！）';
-      } else if (hasFunction) {
-        stars = 2;
-        suffix = '（2星：把參數包成具名的 scanParams 物件再傳入，拿 3 星！）';
+    // 1. 參數物件本身有問題（不是物件、target 找不到星）
+    const badTarget = pulses.find((p) => p.status === 'BAD_PARAMS' || p.status === 'NO_TARGET');
+    if (badTarget) return fail(2, describePulseFailure(badTarget));
+
+    // 2. 三顆星依序檢查：有沒有掃、掃的參數對不對
+    for (const planet of VISIBLE_PLANETS) {
+      const mine = pulses.filter((p) => p.params.target === planet.name);
+      if (mine.length === 0) {
+        const varName = `planet${planet.name.slice(-1)}`;
+        return fail(2, `還沒掃描 ${planet.name}！要呼叫 scanPlanet(${varName})，把 ${varName} 交給函式。`);
+      }
+      if (!mine.some((p) => p.status === 'OK')) {
+        const last = mine[mine.length - 1];
+        return fail(REQ_BY_STATUS[last.status] ?? 2, describePulseFailure(last));
+      }
+    }
+
+    // 3. 用回傳的報告出發
+    const flights = calls.filter((c) => c.api === 'rover.flyTo');
+    if (flights.length === 0) {
+      return fail(3, '三顆星都掃到了，但探測船還沒出發！最後要呼叫 rover.flyTo(reportC.coords)。');
+    }
+    const dest = flights[flights.length - 1].args?.[0];
+    if (dest && typeof dest === 'object' && 'coords' in dest) {
+      return fail(3, 'rover.flyTo 收到的是整份報告，導航只要座標。座標在報告的 coords 屬性裡：rover.flyTo(reportC.coords)。');
+    }
+    if (!sameCoords(dest, PLANET_C.coords)) {
+      const other = VISIBLE_PLANETS.find((p) => sameCoords(dest, p.coords));
+      if (other) {
+        return fail(3, `這是 ${other.name} 的座標！任務要飛往最遠的 ${PLANET_C.name}，要用 reportC.coords。`);
+      }
+      return fail(3, `rover.flyTo 收到的是 ${JSON.stringify(dest) ?? 'undefined'}，不是座標。先用 const reportC = scanPlanet(planetC) 存下報告，再把 reportC.coords 交給導航。`);
+    }
+
+    // 4. 隱藏星系：同一個 scanPlanet 換一組星體
+    const survey = calls.find((c) => c.api === 'scanner.hiddenSurvey');
+    if (!survey) {
+      return fail(4, '找不到 scanPlanet 函式！函式名稱要叫 scanPlanet，系統才能拿它去考隱藏星系。');
+    }
+    for (const system of survey.systems || []) {
+      const bad = system.planets.find((p) => !p.ok);
+      if (!bad) continue;
+      let reason;
+      if (bad.error) {
+        reason = `執行出錯：${bad.error}`;
+      } else if (bad.pulses.length === 0) {
+        reason = 'scanPlanet 沒有發出任何脈衝';
       } else {
-        stars = 1;
-        suffix = '（1星：過關但物件/方法結構鬆散，用 const 包好物件 + function 回傳拿 3 星！）';
+        const last = bad.pulses[bad.pulses.length - 1];
+        reason = last.params.target === bad.name
+          ? describePulseFailure(last)
+          : `脈衝瞄準的是 ${JSON.stringify(last.params.target)}，不是這顆星。target 要寫 planet.name`;
       }
-      return {
-        pass: true,
-        data: { methodId: 'activateScan', range: numRange, mode: 'HIGH', returns: 'SCAN_COMPLETE', stars, fromCode: true },
-        feedback: `深空普查大獲全勝！activateScan 一發覆蓋 ${numRange} 單位空域，回傳 "SCAN_COMPLETE"，所有隱匿星體座標已全數解密歸檔！${suffix}`
-      };
+      return fail(4, `訓練星系過關了，但隱藏星系的 ${bad.name}（距離 ${bad.distance}）失敗：${reason} 你的函式是不是只對 Kepler 三顆星有效？要讀參數 planet 的屬性。`);
     }
 
-    // 新形狀 { methodCall: { methodId, params } }，相容舊形狀 { moduleConfig: {...} }
-    const legacy = runResult.moduleConfig || null;
-    const methodCall = runResult.methodCall || runResult || {};
-    let { methodId, params = {} } = methodCall;
-
-    if (!methodId && legacy) {
-      // 舊存檔遷移：quantum-scanner 視為選對方法，其餘視為選錯方法
-      if (legacy.moduleId === 'quantum-scanner' && legacy.isMethodInvoked) {
-        methodId = 'activateScan';
-        params = { range: legacy.range ?? 0, mode: legacy.mode ?? 'NORMAL' };
-      } else if (legacy.moduleId) {
-        methodId = 'pingEcho';
-        params = { range: legacy.range ?? 0, mode: legacy.mode ?? 'NORMAL' };
-      }
-    }
-
-    // 1. 先判方法選型（方法錯就不談數值）
-    if (methodId === 'focusScan') {
-      return {
-        pass: false,
-        error: '方法選型錯誤！focusScan 是集束直線波，一次只能解析單顆指定目標，無法完成「全空域普查」。請改呼叫 activateScan(scanParams)。',
-        details: { methodId, expected: 'activateScan' }
-      };
-    }
-
-    if (methodId !== 'activateScan') {
-      return {
-        pass: false,
-        error: '方法選型錯誤！pingEcho 是短促回波，只能看到近距離殘影，遠端天體完全收不到訊號。請改呼叫 activateScan(scanParams)。',
-        details: { methodId, expected: 'activateScan' }
-      };
-    }
-
-    // 2. 參數物件完整性
-    const { range = 0, mode } = params;
-    if (range === undefined || range === null || mode === undefined) {
-      return {
-        pass: false,
-        error: '參數物件不完整！scanParams 必須包含 range（掃描半徑）與 mode（解析度）兩個屬性。',
-        details: { params }
-      };
-    }
-
-    // 3. 參數閾值
-    const numRange = Number(range);
-    if (isNaN(numRange) || numRange < 18) {
-      return {
-        pass: false,
-        error: `參數不足！目前 scanParams.range 為 ${range} 單位，最遠的隱藏天體位於 18 單位處，請將半徑調至 18 或以上！`,
-        details: { range, targetRange: 18 }
-      };
-    }
-
-    if (mode !== 'HIGH') {
-      return {
-        pass: false,
-        error: '參數不足！請將 scanParams.mode 切換為 "HIGH" 才能解析星圖深空頻譜。'
-      };
-    }
+    // 星級：每顆星一發就中（不浪費能源）、用 console.log 看過回傳的報告
+    const noWaste = pulses.length === VISIBLE_PLANETS.length;
+    const logsReport = codeMatches(code, /console\.log\s*\([^;\n]*(report|\.coords|\.found)/);
+    const stars = 1 + (noWaste ? 1 : 0) + (logsReport ? 1 : 0);
+    const tips = [];
+    if (!noWaste) tips.push(`每顆星只掃一次（這次發了 ${pulses.length} 發脈衝）`);
+    if (!logsReport) tips.push('用 console.log(reportC) 看看回傳的報告長什麼樣子');
+    const suffix = stars === 3
+      ? '（3星：一個函式掃遍所有星系，還看懂了回傳的報告，完美！）'
+      : `（${stars}星：想拿更高星等，試試：${tips.join('；')}）`;
 
     return {
       pass: true,
-      data: { methodId, range: numRange, mode, returns: 'SCAN_COMPLETE', stars: 2, fromCode: false },
-      feedback: `深空普查大獲全勝！activateScan(scanParams) 一發覆蓋 ${numRange} 單位空域，回傳 "SCAN_COMPLETE"，所有隱匿星體座標已全數解密歸檔！（2星：點選模式上限，切「寫碼」自己定義物件 + 方法拿 3 星）`
+      data: { stars, pulses: pulses.length },
+      feedback: `深空普查完成！同一個 scanPlanet 掃到 Kepler-A、B、C 和所有隱藏星系，探測船正飛往 ${PLANET_C.name}！${suffix}`
     };
   }
 };

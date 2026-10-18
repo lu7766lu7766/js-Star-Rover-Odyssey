@@ -3,6 +3,7 @@
  */
 
 import { autocompletion } from '@codemirror/autocomplete';
+import { HIGH_RES_DISTANCE } from '../../game/sim/scanner.js';
 
 /**
  * Custom level-specific completions for high school students
@@ -38,8 +39,14 @@ export function createLevelCompletions(levelId) {
       { label: 'rover.turnRight', type: 'function', detail: '() 右轉 90°', apply: 'rover.turnRight();' }
     ],
     5: [
-      { label: 'rover.installModule', type: 'function', detail: '(moduleObject) 安裝科技模組', apply: 'rover.installModule(scanModule);' },
-      { label: 'this.range', type: 'property', detail: '存取模組掃描半徑' }
+      { label: 'scanPlanet', type: 'function', detail: '(planet) 你寫的掃描函式，回傳掃描報告', apply: 'scanPlanet(planetA)' },
+      { label: 'scanner.pulse', type: 'function', detail: '(params) 發出掃描脈衝，回傳 { target, found, coords }', apply: 'scanner.pulse(params)' },
+      { label: 'rover.flyTo', type: 'function', detail: '(coords) 飛往座標', apply: 'rover.flyTo(reportC.coords);' },
+      { label: 'planet.name', type: 'property', detail: '星體名稱 (string)' },
+      { label: 'planet.distance', type: 'property', detail: '星體距離 (number)' },
+      { label: 'reportC.coords', type: 'property', detail: '掃描報告裡的座標物件' },
+      { label: '"HIGH"', type: 'constant', detail: `高解析度：距離超過 ${HIGH_RES_DISTANCE} 時使用`, apply: '"HIGH"' },
+      { label: '"NORMAL"', type: 'constant', detail: '一般解析度：近距離使用', apply: '"NORMAL"' }
     ],
     6: [
       { label: 'document.getElementById', type: 'function', detail: '(id) 取得指定 DOM 元素', apply: 'document.getElementById("");' },

@@ -193,54 +193,6 @@ describe('Star Rover Odyssey 2.0 - Level Validation Engine', () => {
     expect(optimalRes.feedback).toContain('卓越評價');
   });
 
-  // Level 5: Functions & Object Arguments f(x)
-  it('Level 5: validates activateScan(scanParams) with range >= 18 and HIGH mode', () => {
-    const passRes = level5.validate({
-      methodCall: {
-        methodId: 'activateScan',
-        params: { range: 20, mode: 'HIGH', target: 'FAR-07', power: 80, duration: 1 }
-      }
-    });
-    expect(passRes.pass).toBe(true);
-    expect(passRes.data.returns).toBe('SCAN_COMPLETE');
-
-    // Wrong method: focusScan fails even with good params
-    const wrongMethod = level5.validate({
-      methodCall: {
-        methodId: 'focusScan',
-        params: { range: 20, mode: 'HIGH', target: 'FAR-07', power: 80, duration: 1 }
-      }
-    });
-    expect(wrongMethod.pass).toBe(false);
-    expect(wrongMethod.error).toContain('方法選型錯誤');
-
-    // Wrong method: pingEcho fails
-    const pingFail = level5.validate({
-      methodCall: {
-        methodId: 'pingEcho',
-        params: { range: 20, mode: 'HIGH', target: 'NEAR-01', power: 50, duration: 3 }
-      }
-    });
-    expect(pingFail.pass).toBe(false);
-    expect(pingFail.error).toContain('方法選型錯誤');
-
-    // Right method, range too short
-    const shortRange = level5.validate({
-      methodCall: {
-        methodId: 'activateScan',
-        params: { range: 15, mode: 'HIGH', target: 'FAR-07', power: 80, duration: 1 }
-      }
-    });
-    expect(shortRange.pass).toBe(false);
-    expect(shortRange.error).toContain('參數不足');
-
-    // Legacy moduleConfig shape still migrates
-    const legacyPass = level5.validate({
-      moduleConfig: { moduleId: 'quantum-scanner', range: 20, mode: 'HIGH', isMethodInvoked: true }
-    });
-    expect(legacyPass.pass).toBe(true);
-  });
-
   // Level 6: DOM Events
   it('Level 6: validates click events, alarm disarm, and airlock open', () => {
     const passRes = level6.validate({
@@ -386,10 +338,10 @@ describe('Star Rover Odyssey 2.0 - Level Validation Engine', () => {
     expect(l4Res.pass).toBe(false);
     expect(l4Res.error).toContain('未抵達目的地');
 
-    // Level 5 initial state (pingEcho + range 10 < 18) -> FAILS on method selection
-    const l5Res = level5.validate({ methodCall: level5.initialMethodCall });
+    // Level 5 nothing scanned -> FAILS with guidance
+    const l5Res = level5.validate({ apiCalls: [], code: '' });
     expect(l5Res.pass).toBe(false);
-    expect(l5Res.error).toContain('方法選型錯誤');
+    expect(l5Res.error).toContain('scanner.pulse');
 
     // Level 6 initial state (disarmed false, airlockOpen false) -> FAILS
     const l6Res = level6.validate({ domState: { bindings: { disarmEvent: 'mouseover', airlockEvent: 'dblclick' }, disarmed: false, airlockOpen: false } });
@@ -537,45 +489,6 @@ for (let k = 0; k < 2; k++) { rover.moveForward(); }`;
     const missing = level2.validate({ apiCalls: [{ api: 'rover.launch', args: [1] }], code: '' });
     expect(missing.pass).toBe(false);
     expect(missing.error).toContain('approachStation');
-  });
-
-  // L5 code mode: installModule trace + object stars
-  it('Level 5 code mode: validates installModule trace and awards stars by object structure', () => {
-    const modCall = (mod) => ([{
-      api: 'rover.installModule',
-      args: [{ ...mod, hasActivate: typeof mod.activate === 'function', activateError: null, activateResult: typeof mod.activate === 'function' ? mod.activate() : undefined }]
-    }]);
-    const goodMod = () => ({
-      name: 'activateScan', range: 20, mode: 'HIGH', activate: function () { return 'SCAN_COMPLETE'; }
-    });
-    const fullCode = 'const scanParams = { range: 20, mode: "HIGH" };\nconst scanModule = { name: "activateScan", activate: function() { return "SCAN_COMPLETE"; } };';
-
-    const best = level5.validate({ apiCalls: modCall(goodMod()), code: fullCode });
-    expect(best.pass).toBe(true);
-    expect(best.data.stars).toBe(3);
-    expect(best.data.returns).toBe('SCAN_COMPLETE');
-
-    // wrong method
-    const wrong = { ...goodMod(), name: 'focusScan' };
-    expect(level5.validate({ apiCalls: modCall(wrong), code: '' }).pass).toBe(false);
-    // short range
-    const short = { ...goodMod(), range: 10 };
-    expect(level5.validate({ apiCalls: modCall(short), code: '' }).pass).toBe(false);
-    // wrong mode
-    const badMode = { ...goodMod(), mode: 'NORMAL' };
-    expect(level5.validate({ apiCalls: modCall(badMode), code: '' }).pass).toBe(false);
-    // wrong return
-    const badRet = { ...goodMod(), activate: function () { return 'PARTIAL_SINGLE'; } };
-    const badRetRes = level5.validate({ apiCalls: modCall(badRet), code: '' });
-    expect(badRetRes.pass).toBe(false);
-    expect(badRetRes.error).toContain('回傳值');
-    // missing activate
-    const noFn = { name: 'activateScan', range: 20, mode: 'HIGH' };
-    expect(level5.validate({ apiCalls: modCall(noFn), code: '' }).pass).toBe(false);
-    // missing call
-    const missing5 = level5.validate({ apiCalls: [{ api: 'rover.setup', args: [] }], code: '' });
-    expect(missing5.pass).toBe(false);
-    expect(missing5.error).toContain('installModule');
   });
 
   // L7 code mode: deploy trace + iteration stars

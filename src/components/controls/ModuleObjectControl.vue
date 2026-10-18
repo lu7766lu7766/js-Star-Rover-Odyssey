@@ -3,7 +3,7 @@
     <div class="deck-header">
       <div class="deck-title-group">
         <Cpu :size="18" class="text-brand" />
-        <h3 class="deck-title">模組裝載：函式與物件</h3>
+        <h3 class="deck-title">深空普查：物件與函式</h3>
       </div>
       <div class="header-actions">
         <button class="btn btn-ghost btn-sm" @click="resetDefaults" title="還原場景與參數至最初狀態">
@@ -21,7 +21,7 @@
             <Code :size="15" class="text-brand" />
             <span>手寫 JS 挑戰 · 把 ___ 補完再執行</span>
           </div>
-          <span class="badge badge-info">物件 + 方法 = 3星</span>
+          <span class="badge badge-info">通關隱藏星系 = 1~3星</span>
         </div>
         <div class="code-editor-wrap">
           <CodeEditor v-model="studentCode" :level-id="5" @reset="resetCode" @run="runCodeExecution" />
@@ -39,23 +39,38 @@
         <RunFeedback />
       </div>
 
-      <!-- 1. Function reference cards（方法對照表：讀懂三個 f 的差別再選） -->
+      <!-- 1. 雷達規格（只寫規則，不寫答案：數值要從 planet 物件讀） -->
       <div class="module-select-box">
-        <span class="box-label">函式對照表 f（讀懂行為差異，寫碼時選對函式）：</span>
+        <span class="box-label">雷達規格表（三顆星距離不同，range 要從 planet.distance 算）：</span>
         <div class="module-cards-grid">
-          <div
-            v-for="m in availableMethods"
-            :key="m.id"
-            class="mod-option-card card"
-          >
+          <div class="mod-option-card card">
             <div class="mod-top">
-              <strong class="mono">{{ m.signature }}</strong>
-              <span class="badge" :class="m.id === 'activateScan' ? 'badge-blue' : 'badge-warning'">
-                {{ m.label }}
-              </span>
+              <strong class="mono">scanner.pulse(params)</strong>
+              <span class="badge badge-blue">掃描脈衝</span>
             </div>
-            <p class="mod-desc">{{ m.description }}</p>
-            <p class="mod-return mono">回傳 {{ m.returns }}</p>
+            <p class="mod-desc">params 是參數物件：target（星體名稱）、range（半徑）、mode（解析度）</p>
+            <p class="mod-return mono">回傳 { target, found, coords }</p>
+          </div>
+          <div class="mod-option-card card">
+            <div class="mod-top">
+              <strong class="mono">range</strong>
+              <span class="badge badge-warning">半徑限制</span>
+            </div>
+            <p class="mod-desc">至少要等於星體距離才碰得到；比距離多超過 {{ rangeMargin }} 會過熱</p>
+          </div>
+          <div class="mod-option-card card">
+            <div class="mod-top">
+              <strong class="mono">mode</strong>
+              <span class="badge badge-warning">解析度</span>
+            </div>
+            <p class="mod-desc">距離超過 {{ highResDistance }} 用 "HIGH"；近距離用 "HIGH" 會過曝，要用 "NORMAL"</p>
+          </div>
+          <div class="mod-option-card card">
+            <div class="mod-top">
+              <strong class="mono">rover.flyTo(coords)</strong>
+              <span class="badge badge-blue">導航</span>
+            </div>
+            <p class="mod-desc">只收座標物件，座標在掃描報告的 coords 屬性裡</p>
           </div>
         </div>
       </div>
@@ -64,7 +79,7 @@
     <!-- Execute Bar -->
     <div class="deck-footer">
       <div class="footer-hint">
-        先選對要呼叫的函式，再把參數物件的屬性填好
+        同一個 scanPlanet 呼叫三次：每次交給它不同的星體物件
       </div>
     </div>
   </div>
@@ -75,19 +90,22 @@ import { ref, onMounted } from 'vue';
 import { Cpu, RotateCcw, Radio, Code } from 'lucide-vue-next';
 import { useLevelStore } from '../../stores/levelStore.js';
 import { useProgressStore } from '../../stores/progressStore.js';
-import { AVAILABLE_METHODS, LEVEL_5_STARTER_CODE } from '../../levels/level-5.js';
+import { LEVEL_5_STARTER_CODE } from '../../levels/level-5.js';
+import { RANGE_MARGIN, HIGH_RES_DISTANCE } from '../../game/sim/scanner.js';
 import CodeEditor from '../editor/CodeEditor.vue';
 import RunFeedback from './RunFeedback.vue';
 
 const levelStore = useLevelStore();
 const progressStore = useProgressStore();
 
-const availableMethods = AVAILABLE_METHODS;
+const rangeMargin = RANGE_MARGIN;
+const highResDistance = HIGH_RES_DISTANCE;
 const studentCode = ref(LEVEL_5_STARTER_CODE);
 
 onMounted(() => {
   const saved = progressStore.getSavedOperation(5);
-  if (saved && typeof saved.code === 'string' && saved.code.length > 0) {
+  // 舊版關卡（rover.installModule 模組裝載）的存檔程式碼已經跑不動，直接用新的起始程式碼
+  if (saved && typeof saved.code === 'string' && saved.code.length > 0 && !saved.code.includes('installModule')) {
     studentCode.value = saved.code;
   }
 });

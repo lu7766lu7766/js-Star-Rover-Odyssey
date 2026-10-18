@@ -17,9 +17,11 @@ let currentMockDoc = null;
 let recordedAPICalls = [];
 let capturedLogs = [];
 let capturedVariables = [];
+// L5 隱藏星系考驗時不輸出 console.log（不然會把沒公開的星體名稱與座標印給學生看）
+let muteLogs = false;
 
 function postLog(type, args) {
-  if (capturedLogs.length >= 100) return;
+  if (muteLogs || capturedLogs.length >= 100) return;
   const serialized = args.map(arg => {
     if (typeof arg === 'object' && arg !== null) {
       try {
@@ -104,7 +106,9 @@ workerSelf.onmessage = function (e) {
     }
 
     // Game APIs exposed to student code（宣告表驅動，見 gameApi.js）
+    const hooks = {};
     const gameApi = createGameApi({
+      hooks,
       calls: recordedAPICalls,
       emit: (apiPayload) => {
         workerSelf.postMessage({
@@ -132,7 +136,22 @@ workerSelf.onmessage = function (e) {
         [TRACE_FN]: tracer.hook,
         [SAFE_GET_FN]: tracer.safeGet
       }, {
-        onVariables: (vars) => { capturedVariables = vars; }
+        onVariables: (vars) => { capturedVariables = vars; },
+        // L5：程式跑完後，拿學生的 scanPlanet 去掃隱藏星系（不記入逐行重播）
+        probe: levelId === 5 ? {
+          names: ['scanPlanet'],
+          callback: ({ scanPlanet }) => {
+            if (!scanPlanet) return;
+            tracer.setPaused(true);
+            muteLogs = true;
+            try {
+              hooks.runHiddenScanSurvey(scanPlanet);
+            } finally {
+              tracer.setPaused(false);
+              muteLogs = false;
+            }
+          }
+        } : undefined
       });
 
       // Execute student code, then flush async continuations (L8 async/await):

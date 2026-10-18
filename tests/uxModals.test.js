@@ -331,21 +331,31 @@ describe('Star Rover Odyssey 2.0 - Failure Alert Modal & Vehicle Restore Suite',
     close(f.x, -1); close(f.z, 0);
   });
 
-  it('Level5Scene: installs the traced module method instead of defaulting (code mode)', () => {
+  it('Level5Scene: plays one pulse per scanner.pulse call, reveals found planets, then flies', () => {
     const scene = new Level5Scene();
     scene.build();
 
     scene.handleAction('EXECUTE_START', {
       levelId: 5,
       payload: {
-        apiCalls: [{ api: 'rover.installModule', args: [{ name: 'focusScan', range: 20, mode: 'HIGH' }] }],
-        code: 'const...'
+        apiCalls: [
+          { api: 'scanner.pulse', args: [{ target: 'Kepler-A', range: 10, mode: 'NORMAL' }], status: 'OK' },
+          { api: 'scanner.pulse', args: [{ target: 'Kepler-B', range: 10, mode: 'NORMAL' }], status: 'TOO_SHORT' },
+          { api: 'rover.flyTo', args: [{ x: -4.6, z: -6.55 }] }
+        ]
       }
     });
+    expect(scene.queue.length).toBe(3);
 
-    expect(scene.isInstalled).toBe(true);
-    expect(scene.activeMethod).toBe('focusScan');
-    expect(scene.scanRadius).toBe(20);
-    expect(scene.scannerDish.visible).toBe(true);
+    for (let i = 0; i < 400; i++) scene.update(1 / 60);
+
+    const [a, b] = scene.planets;
+    expect(a.glow.visible).toBe(true);
+    expect(b.glow.visible).toBe(false);
+    expect(scene.current).toBe(null);
+    expect(scene.queue.length).toBe(0);
+    // 停在 A 星前方，不會撞進星體
+    const dist = Math.hypot(scene.rover.position.x - (-4.6), scene.rover.position.z - (-6.55));
+    expect(dist).toBeCloseTo(2.8, 1);
   });
 });
